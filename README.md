@@ -1,7 +1,7 @@
 <div align="center"> <h1> Computer Organization and Architecture III  </h1>
 </div>
 
-This project is part of the Computer Organization and Architecture III (2024.2) course. The objective of the project was to implement a logical synthesis of [biRISC-V Core](http://github.com/ultraembedded/biriscv) using IBM 180 PDK and perform a Gate Level Simulation.
+This project is part of the Computer Organization and Architecture III (2025.2) course. The objective of the project was to modify the [biRISC-V Core] (http://github.com/ultraembedded/biriscv) to implement a 32-bit superscalar four-issue in-order RISC-V core, run logic synthesis using GPDK45, and perform a gate-level simulation.
 
 
 1. [biRISC-V](#biriscv)
