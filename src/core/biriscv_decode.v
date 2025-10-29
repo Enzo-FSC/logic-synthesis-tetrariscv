@@ -145,7 +145,7 @@ begin
             fetch_in_pc_w, 
             fetch_in_valid_w} = fetch_buffer_q;
 
-    assign fetch_in_instr_w = (fetch_in_fault_page_w | fetch_in_fault_fetch_w) ? 64'b0 : fetch_in_instr_raw_w;
+    assign fetch_in_instr_w = (fetch_in_fault_page_w | fetch_in_fault_fetch_w) ? 128'b0 : fetch_in_instr_raw_w;
 
     wire [7:0] info0_in_w;
     wire [9:0] info0_out_w;
@@ -309,9 +309,11 @@ begin
         ,.push_i(fetch_in_valid_i)
         ,.pc_in_i(fetch_in_pc_i)
         ,.pred_in_i(fetch_in_pred_branch_i)
-        ,.data_in_i((fetch_in_fault_page_i | fetch_in_fault_fetch_i) ? 64'b0 : fetch_in_instr_i)
+        ,.data_in_i((fetch_in_fault_page_i | fetch_in_fault_fetch_i) ? 128'b0 : fetch_in_instr_i)
         ,.info0_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i})
         ,.info1_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i})
+        ,.info2_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i})
+        ,.info3_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i})
         ,.accept_o(fetch_in_accept_o)
 
         // Outputs
@@ -326,6 +328,18 @@ begin
         ,.data1_out_o(fetch_out1_instr_o)
         ,.info1_out_o({fetch_out1_fault_page_o, fetch_out1_fault_fetch_o})
         ,.pop1_i(fetch_out1_accept_i)
+
+        ,.valid2_o(fetch_out2_valid_o)
+        ,.pc2_out_o(fetch_out2_pc_o)
+        ,.data2_out_o(fetch_out2_instr_o)
+        ,.info2_out_o({fetch_out2_fault_page_o, fetch_out2_fault_fetch_o})
+        ,.pop2_i(fetch_out2_accept_i)
+
+        ,.valid3_o(fetch_out3_valid_o)
+        ,.pc3_out_o(fetch_out3_pc_o)
+        ,.data3_out_o(fetch_out3_instr_o)
+        ,.info3_out_o({fetch_out3_fault_page_o, fetch_out3_fault_fetch_o})
+        ,.pop3_i(fetch_out3_accept_i)
     );
 
     biriscv_decoder
@@ -363,6 +377,42 @@ begin
         ,.csr_o(fetch_out1_instr_csr_o)
         ,.rd_valid_o(fetch_out1_instr_rd_valid_o)
     );
+
+    biriscv_decoder
+    u_dec2
+    (
+         .valid_i(fetch_out2_valid_o)
+        ,.fetch_fault_i(fetch_out2_fault_fetch_o | fetch_out2_fault_page_o)
+        ,.enable_muldiv_i(enable_muldiv_w)
+        ,.opcode_i(fetch_out2_instr_o)
+
+        ,.invalid_o(fetch_out2_instr_invalid_o)
+        ,.exec_o(fetch_out2_instr_exec_o)
+        ,.lsu_o(fetch_out2_instr_lsu_o)
+        ,.branch_o(fetch_out2_instr_branch_o)
+        ,.mul_o(fetch_out2_instr_mul_o)
+        ,.div_o(fetch_out2_instr_div_o)
+        ,.csr_o(fetch_out2_instr_csr_o)
+        ,.rd_valid_o(fetch_out2_instr_rd_valid_o)
+    );
+
+    biriscv_decoder
+    u_dec3
+    (
+         .valid_i(fetch_out3_valid_o)
+        ,.fetch_fault_i(fetch_out3_fault_fetch_o | fetch_out3_fault_page_o)
+        ,.enable_muldiv_i(enable_muldiv_w)
+        ,.opcode_i(fetch_out3_instr_o)
+
+        ,.invalid_o(fetch_out3_instr_invalid_o)
+        ,.exec_o(fetch_out3_instr_exec_o)
+        ,.lsu_o(fetch_out3_instr_lsu_o)
+        ,.branch_o(fetch_out3_instr_branch_o)
+        ,.mul_o(fetch_out3_instr_mul_o)
+        ,.div_o(fetch_out3_instr_div_o)
+        ,.csr_o(fetch_out3_instr_csr_o)
+        ,.rd_valid_o(fetch_out3_instr_rd_valid_o)
+    );
 end
 endgenerate
 
@@ -373,7 +423,7 @@ module fetch_fifo
 // Params
 //-----------------------------------------------------------------
 #(
-    parameter WIDTH   = 64,
+    parameter WIDTH   = 128,
     parameter DEPTH   = 2,
     parameter ADDR_W  = 1,
     parameter OPC_INFO_W = 10
@@ -394,20 +444,34 @@ module fetch_fifo
     ,input  [WIDTH-1:0]     data_in_i
     ,input [OPC_INFO_W-1:0] info0_in_i
     ,input [OPC_INFO_W-1:0] info1_in_i
+    ,input [OPC_INFO_W-1:0] info2_in_i
+    ,input [OPC_INFO_W-1:0] info3_in_i
     ,output                 accept_o
 
     // Outputs
     ,output                 valid0_o
     ,output  [31:0]         pc0_out_o
-    ,output [(WIDTH/2)-1:0] data0_out_o
+    ,output [(WIDTH/4)-1:0] data0_out_o
     ,output[OPC_INFO_W-1:0] info0_out_o
     ,input                  pop0_i
 
     ,output                 valid1_o
     ,output  [31:0]         pc1_out_o
-    ,output [(WIDTH/2)-1:0] data1_out_o
+    ,output [(WIDTH/4)-1:0] data1_out_o
     ,output[OPC_INFO_W-1:0] info1_out_o
     ,input                  pop1_i
+
+    ,output                 valid2_o
+    ,output  [31:0]         pc2_out_o
+    ,output [(WIDTH/4)-1:0] data2_out_o
+    ,output[OPC_INFO_W-1:0] info2_out_o
+    ,input                  pop2_i
+
+    ,output                 valid3_o
+    ,output  [31:0]         pc3_out_o
+    ,output [(WIDTH/4)-1:0] data3_out_o
+    ,output[OPC_INFO_W-1:0] info3_out_o
+    ,input                  pop3_i
 );
 
 //-----------------------------------------------------------------
@@ -421,8 +485,12 @@ localparam COUNT_W = ADDR_W + 1;
 reg [31:0]           pc_q[DEPTH-1:0];
 reg                  valid0_q[DEPTH-1:0];
 reg                  valid1_q[DEPTH-1:0];
+reg                  valid2_q[DEPTH-1:0];
+reg                  valid3_q[DEPTH-1:0];
 reg [OPC_INFO_W-1:0] info0_q[DEPTH-1:0];
 reg [OPC_INFO_W-1:0] info1_q[DEPTH-1:0];
+reg [OPC_INFO_W-1:0] info2_q[DEPTH-1:0];
+reg [OPC_INFO_W-1:0] info3_q[DEPTH-1:0];
 reg [WIDTH-1:0]      ram_q[DEPTH-1:0];
 reg [ADDR_W-1:0]     rd_ptr_q;
 reg [ADDR_W-1:0]     wr_ptr_q;
@@ -432,9 +500,20 @@ reg [COUNT_W-1:0]    count_q;
 // Sequential
 //-----------------------------------------------------------------
 wire push_w         = (push_i & accept_o);
-wire pop1_w         = (pop0_i & valid0_o);
-wire pop2_w         = (pop1_i & valid1_o);
-wire pop_complete_w = ((pop1_w && ~valid1_o) || (pop2_w && ~valid0_o) || (pop1_w && pop2_w));
+wire pop0_w         = (pop0_i & valid0_o);
+wire pop1_w         = (pop1_i & valid1_o);
+wire pop2_w         = (pop2_i & valid2_o);
+wire pop3_w         = (pop3_i & valid3_o);
+wire pop_complete_w = (pop0_w | ~valid0_o) & 
+                      (pop1_w | ~valid1_o) & 
+                      (pop2_w | ~valid2_o) & 
+                      (pop3_w | ~valid3_o) &
+                      (count_q != 0);
+// wire pop_complete_w = ((pop0_w && ~valid1_o) || (pop0_w && ~valid2_o) || (pop0_w && ~valid3_o) || 
+//                        (pop1_w && ~valid0_o) || (pop1_w && ~valid2_o) || (pop1_w && ~valid3_o) ||
+//                        (pop2_w && ~valid0_o) || (pop2_w && ~valid1_o) || (pop2_w && ~valid3_o) ||
+//                        (pop3_w && ~valid0_o) || (pop3_w && ~valid1_o) || (pop3_w && ~valid2_o) ||
+//                        (pop0_w && pop1_w && pop2_w && pop3_w));
 
 integer i;
 
@@ -451,8 +530,12 @@ begin
         pc_q[i]          <= 32'b0;
         info0_q[i]       <= {(OPC_INFO_W) {1'b0}};
         info1_q[i]       <= {(OPC_INFO_W) {1'b0}};
+        info2_q[i]       <= {(OPC_INFO_W) {1'b0}};
+        info3_q[i]       <= {(OPC_INFO_W) {1'b0}};
         valid0_q[i]      <= 1'b0;
         valid1_q[i]      <= 1'b0;
+        valid2_q[i]      <= 1'b0;
+        valid3_q[i]      <= 1'b0;
     end
 end
 else if (flush_i)
@@ -465,8 +548,12 @@ begin
     begin
         info0_q[i]       <= {(OPC_INFO_W) {1'b0}};
         info1_q[i]       <= {(OPC_INFO_W) {1'b0}};
-        //valid0_q[i]      <= 1'b0; // TODO:...
-        //valid1_q[i]      <= 1'b0; // TODO:...
+        info2_q[i]       <= {(OPC_INFO_W) {1'b0}};
+        info3_q[i]       <= {(OPC_INFO_W) {1'b0}};
+        valid0_q[i]      <= 1'b0; // descomentado
+        valid1_q[i]      <= 1'b0; // descomentado
+        valid2_q[i]      <= 1'b0;
+        valid3_q[i]      <= 1'b0;
     end
 end
 else
@@ -478,15 +565,23 @@ begin
         pc_q[wr_ptr_q]      <= pc_in_i;
         info0_q[wr_ptr_q]   <= info0_in_i;
         info1_q[wr_ptr_q]   <= info1_in_i;
-        valid0_q[wr_ptr_q]  <= 1'b1;
-        valid1_q[wr_ptr_q]  <= ~pred_in_i[0];
+        info2_q[wr_ptr_q]   <= info2_in_i;
+        info3_q[wr_ptr_q]   <= info3_in_i;
+        valid0_q[wr_ptr_q]  <= 1'b1; //sempre valido
+        valid1_q[wr_ptr_q]  <= (pred_in_i >= 2'b01); // valido apenas se 2 ou mais instruções
+        valid2_q[wr_ptr_q]  <= (pred_in_i >= 2'b10); // valido apenas se 3 ou 4 instruções
+        valid3_q[wr_ptr_q]  <= (pred_in_i >= 2'b11); // valido apenas se 4 instruções
         wr_ptr_q            <= wr_ptr_q + 1;
     end
 
-    if (pop1_w)
+    if (pop0_w)
         valid0_q[rd_ptr_q] <= 1'b0;
-    if (pop2_w)
+    if (pop1_w)
         valid1_q[rd_ptr_q] <= 1'b0;
+    if (pop2_w)
+        valid2_q[rd_ptr_q] <= 1'b0;
+    if (pop3_w)
+        valid3_q[rd_ptr_q] <= 1'b0;
 
     // Both instructions completed
     if (pop_complete_w)
@@ -504,17 +599,23 @@ end
 /* verilator lint_off WIDTH */
 assign valid0_o      = (count_q != 0) & valid0_q[rd_ptr_q];
 assign valid1_o      = (count_q != 0) & valid1_q[rd_ptr_q];
+assign valid2_o      = (count_q != 0) & valid2_q[rd_ptr_q];
+assign valid3_o      = (count_q != 0) & valid3_q[rd_ptr_q];
 assign accept_o      = (count_q != DEPTH);
 /* verilator lint_on WIDTH */
 
-assign pc0_out_o     = {pc_q[rd_ptr_q][31:3],3'b000};
-assign pc1_out_o     = {pc_q[rd_ptr_q][31:3],3'b100};
-assign data0_out_o   = ram_q[rd_ptr_q][(WIDTH/2)-1:0];
-assign data1_out_o   = ram_q[rd_ptr_q][WIDTH-1:(WIDTH/2)];
+assign pc0_out_o     = {pc_q[rd_ptr_q][31:4],4'b0000};
+assign pc1_out_o     = {pc_q[rd_ptr_q][31:4],4'b0100};
+assign pc2_out_o     = {pc_q[rd_ptr_q][31:4],4'b1000};
+assign pc3_out_o     = {pc_q[rd_ptr_q][31:4],4'b1100};
+assign data0_out_o   = ram_q[rd_ptr_q][(WIDTH/4)-1:0];
+assign data1_out_o   = ram_q[rd_ptr_q][(WIDTH/2)-1:(WIDTH/4)];
+assign data2_out_o   = ram_q[rd_ptr_q][(3*WIDTH/4)-1:(WIDTH/2)];
+assign data3_out_o   = ram_q[rd_ptr_q][WIDTH-1:(3*WIDTH/4)];
 
 assign info0_out_o   = info0_q[rd_ptr_q];
 assign info1_out_o   = info1_q[rd_ptr_q];
-
-
+assign info2_out_o   = info2_q[rd_ptr_q];
+assign info3_out_o   = info3_q[rd_ptr_q];
 
 endmodule
