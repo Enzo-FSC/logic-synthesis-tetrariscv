@@ -39,13 +39,15 @@ module biriscv_decode
      input           clk_i
     ,input           rst_i
     ,input           fetch_in_valid_i
-    ,input  [ 63:0]  fetch_in_instr_i
+    ,input  [127:0]  fetch_in_instr_i
     ,input  [  1:0]  fetch_in_pred_branch_i
     ,input           fetch_in_fault_fetch_i
     ,input           fetch_in_fault_page_i
     ,input  [ 31:0]  fetch_in_pc_i
     ,input           fetch_out0_accept_i
     ,input           fetch_out1_accept_i
+    ,input           fetch_out2_accept_i
+    ,input           fetch_out3_accept_i
     ,input           branch_request_i
     ,input  [ 31:0]  branch_pc_i
     ,input  [  1:0]  branch_priv_i
@@ -78,6 +80,34 @@ module biriscv_decode
     ,output          fetch_out1_instr_csr_o
     ,output          fetch_out1_instr_rd_valid_o
     ,output          fetch_out1_instr_invalid_o
+    // Outputs for 3rd instruction in fetch bundle (if present)
+    ,output          fetch_out2_valid_o
+    ,output [ 31:0]  fetch_out2_instr_o
+    ,output [ 31:0]  fetch_out2_pc_o
+    ,output          fetch_out2_fault_fetch_o
+    ,output          fetch_out2_fault_page_o
+    ,output          fetch_out2_instr_exec_o
+    ,output          fetch_out2_instr_lsu_o
+    ,output          fetch_out2_instr_branch_o
+    ,output          fetch_out2_instr_mul_o
+    ,output          fetch_out2_instr_div_o
+    ,output          fetch_out2_instr_csr_o
+    ,output          fetch_out2_instr_rd_valid_o
+    ,output          fetch_out2_instr_invalid_o
+    // Outputs for 4th instruction in fetch bundle (if present)
+    ,output          fetch_out3_valid_o
+    ,output [ 31:0]  fetch_out3_instr_o
+    ,output [ 31:0]  fetch_out3_pc_o
+    ,output          fetch_out3_fault_fetch_o
+    ,output          fetch_out3_fault_page_o
+    ,output          fetch_out3_instr_exec_o
+    ,output          fetch_out3_instr_lsu_o
+    ,output          fetch_out3_instr_branch_o
+    ,output          fetch_out3_instr_mul_o
+    ,output          fetch_out3_instr_div_o
+    ,output          fetch_out3_instr_csr_o
+    ,output          fetch_out3_instr_rd_valid_o
+    ,output          fetch_out3_instr_invalid_o
 );
 
 
@@ -93,18 +123,18 @@ begin
     wire        fetch_in_fault_page_w;
     wire        fetch_in_fault_fetch_w;
     wire [1:0]  fetch_in_pred_branch_w;
-    wire [63:0] fetch_in_instr_raw_w;
-    wire [63:0] fetch_in_instr_w;
+    wire [127:0] fetch_in_instr_raw_w;
+    wire [127:0] fetch_in_instr_w;
     wire [31:0] fetch_in_pc_w;
     wire        fetch_in_valid_w;
 
-    reg [100:0] fetch_buffer_q;
+    reg [164:0] fetch_buffer_q;
 
     always @ (posedge clk_i or posedge rst_i)
     if (rst_i)
-        fetch_buffer_q <= 101'b0;
+        fetch_buffer_q <= 165'b0;
     else if (branch_request_i)
-        fetch_buffer_q <= 101'b0;
+        fetch_buffer_q <= 165'b0;
     else if (!fetch_in_valid_w || fetch_in_accept_o)
         fetch_buffer_q <= {fetch_in_fault_page_i, fetch_in_fault_fetch_i, fetch_in_pred_branch_i, fetch_in_instr_i, fetch_in_pc_i, fetch_in_valid_i};
 
@@ -121,6 +151,10 @@ begin
     wire [9:0] info0_out_w;
     wire [7:0] info1_in_w;
     wire [9:0] info1_out_w;
+    wire [7:0] info2_in_w;
+    wire [9:0] info2_out_w;
+    wire [7:0] info3_in_w;
+    wire [9:0] info3_out_w;
 
 
     biriscv_decoder
@@ -159,6 +193,42 @@ begin
         ,.rd_valid_o(info1_in_w[0])
     );
 
+    biriscv_decoder
+    u_dec2
+    (
+         .valid_i(fetch_in_valid_w)
+        ,.fetch_fault_i(fetch_in_fault_fetch_w | fetch_in_fault_page_w)
+        ,.enable_muldiv_i(enable_muldiv_w)
+        ,.opcode_i(fetch_in_instr_w[95:64])
+
+        ,.invalid_o(info2_in_w[7])
+        ,.exec_o(info2_in_w[6])
+        ,.lsu_o(info2_in_w[5])
+        ,.branch_o(info2_in_w[4])
+        ,.mul_o(info2_in_w[3])
+        ,.div_o(info2_in_w[2])
+        ,.csr_o(info2_in_w[1])
+        ,.rd_valid_o(info2_in_w[0])
+    );
+
+    biriscv_decoder
+    u_dec3
+    (
+         .valid_i(fetch_in_valid_w)
+        ,.fetch_fault_i(fetch_in_fault_fetch_w | fetch_in_fault_page_w)
+        ,.enable_muldiv_i(enable_muldiv_w)
+        ,.opcode_i(fetch_in_instr_w[127:96])
+
+        ,.invalid_o(info3_in_w[7])
+        ,.exec_o(info3_in_w[6])
+        ,.lsu_o(info3_in_w[5])
+        ,.branch_o(info3_in_w[4])
+        ,.mul_o(info3_in_w[3])
+        ,.div_o(info3_in_w[2])
+        ,.csr_o(info3_in_w[1])
+        ,.rd_valid_o(info3_in_w[0])
+    );
+
     fetch_fifo
     #( .OPC_INFO_W(10) )
     u_fifo
@@ -175,6 +245,8 @@ begin
         ,.data_in_i(fetch_in_instr_w)
         ,.info0_in_i({info0_in_w, fetch_in_fault_page_w, fetch_in_fault_fetch_w})
         ,.info1_in_i({info1_in_w, fetch_in_fault_page_w, fetch_in_fault_fetch_w})
+        ,.info2_in_i({info2_in_w, fetch_in_fault_page_w, fetch_in_fault_fetch_w})
+        ,.info3_in_i({info3_in_w, fetch_in_fault_page_w, fetch_in_fault_fetch_w})
         ,.accept_o(fetch_in_accept_o)
 
         // Outputs
@@ -197,6 +269,26 @@ begin
                        fetch_out1_instr_csr_o,     fetch_out1_instr_rd_valid_o,
                        fetch_out1_fault_page_o,    fetch_out1_fault_fetch_o})
         ,.pop1_i(fetch_out1_accept_i)
+
+        ,.valid2_o(fetch_out2_valid_o)
+        ,.pc2_out_o(fetch_out2_pc_o)
+        ,.data2_out_o(fetch_out2_instr_o)
+        ,.info2_out_o({fetch_out2_instr_invalid_o, fetch_out2_instr_exec_o,
+                       fetch_out2_instr_lsu_o,     fetch_out2_instr_branch_o,
+                       fetch_out2_instr_mul_o,     fetch_out2_instr_div_o,
+                       fetch_out2_instr_csr_o,     fetch_out2_instr_rd_valid_o,
+                       fetch_out2_fault_page_o,    fetch_out2_fault_fetch_o})
+        ,.pop2_i(fetch_out2_accept_i)
+
+        ,.valid3_o(fetch_out3_valid_o)
+        ,.pc3_out_o(fetch_out3_pc_o)
+        ,.data3_out_o(fetch_out3_instr_o)
+        ,.info3_out_o({fetch_out3_instr_invalid_o, fetch_out3_instr_exec_o,
+                       fetch_out3_instr_lsu_o,     fetch_out3_instr_branch_o,
+                       fetch_out3_instr_mul_o,     fetch_out3_instr_div_o,
+                       fetch_out3_instr_csr_o,     fetch_out3_instr_rd_valid_o,
+                       fetch_out3_fault_page_o,    fetch_out3_fault_fetch_o})
+        ,.pop3_i(fetch_out3_accept_i)
     );
 end
 //-----------------------------------------------------------------
