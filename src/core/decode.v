@@ -1,29 +1,4 @@
-//-----------------------------------------------------------------
-//                         biRISC-V CPU
-//                            V0.8.1
-//                     Ultra-Embedded.com
-//                     Copyright 2019-2020
-//
-//                   admin@ultra-embedded.com
-//
-//                     License: Apache 2.0
-//-----------------------------------------------------------------
-// Copyright 2020 Ultra-Embedded.com
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//-----------------------------------------------------------------
-
-module biriscv_decode
+module decode
 //-----------------------------------------------------------------
 // Params
 //-----------------------------------------------------------------
@@ -157,7 +132,7 @@ begin
     wire [9:0] info3_out_w;
 
 
-    biriscv_decoder
+    decoder
     u_dec0
     (
          .valid_i(fetch_in_valid_w)
@@ -175,7 +150,7 @@ begin
         ,.rd_valid_o(info0_in_w[0])
     );
 
-    biriscv_decoder
+    decoder
     u_dec1
     (
          .valid_i(fetch_in_valid_w)
@@ -193,7 +168,7 @@ begin
         ,.rd_valid_o(info1_in_w[0])
     );
 
-    biriscv_decoder
+    decoder
     u_dec2
     (
          .valid_i(fetch_in_valid_w)
@@ -211,7 +186,7 @@ begin
         ,.rd_valid_o(info2_in_w[0])
     );
 
-    biriscv_decoder
+    decoder
     u_dec3
     (
          .valid_i(fetch_in_valid_w)
@@ -342,7 +317,7 @@ begin
         ,.pop3_i(fetch_out3_accept_i)
     );
 
-    biriscv_decoder
+    decoder
     u_dec0
     (
          .valid_i(fetch_out0_valid_o)
@@ -360,7 +335,7 @@ begin
         ,.rd_valid_o(fetch_out0_instr_rd_valid_o)
     );
 
-    biriscv_decoder
+    decoder
     u_dec1
     (
          .valid_i(fetch_out1_valid_o)
@@ -378,7 +353,7 @@ begin
         ,.rd_valid_o(fetch_out1_instr_rd_valid_o)
     );
 
-    biriscv_decoder
+    decoder
     u_dec2
     (
          .valid_i(fetch_out2_valid_o)
@@ -396,7 +371,7 @@ begin
         ,.rd_valid_o(fetch_out2_instr_rd_valid_o)
     );
 
-    biriscv_decoder
+    decoder
     u_dec3
     (
          .valid_i(fetch_out3_valid_o)
@@ -617,5 +592,4 @@ assign info0_out_o   = info0_q[rd_ptr_q];
 assign info1_out_o   = info1_q[rd_ptr_q];
 assign info2_out_o   = info2_q[rd_ptr_q];
 assign info3_out_o   = info3_q[rd_ptr_q];
-
 endmodule

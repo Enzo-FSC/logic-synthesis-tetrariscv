@@ -1,28 +1,6 @@
-//-----------------------------------------------------------------
-//                         biRISC-V CPU
-//                            V0.8.1
-//                     Ultra-Embedded.com
-//                     Copyright 2019-2020
-//
-//                   admin@ultra-embedded.com
-//
-//                     License: Apache 2.0
-//-----------------------------------------------------------------
-// Copyright 2020 Ultra-Embedded.com
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//-----------------------------------------------------------------
-module biriscv_pipe_ctrl
+`include "defs.v"
+
+module pipe_ctrl
 //-----------------------------------------------------------------
 // Params
 //-----------------------------------------------------------------
@@ -112,11 +90,6 @@ module biriscv_pipe_ctrl
     ,input           squash_e1_e2_i
     ,input           squash_wb_i
 );
-
-//-------------------------------------------------------------
-// Includes
-//-------------------------------------------------------------
-`include "biriscv_defs.v"
 
 wire squash_e1_e2_w;
 wire branch_misaligned_w = (issue_branch_taken_i && issue_branch_target_i[1:0] != 2'b0);
@@ -441,7 +414,7 @@ assign csr_waddr_wb_o  = opcode_wb_q[31:20];
 assign csr_wdata_wb_o  = csr_wdata_wb_q;
 
 `ifdef verilator
-biriscv_trace_sim
+trace_sim
 u_trace_d
 (
      .valid_i(issue_valid_i)
@@ -449,7 +422,7 @@ u_trace_d
     ,.opcode_i(issue_opcode_i)
 );
 
-biriscv_trace_sim
+trace_sim
 u_trace_wb
 (
      .valid_i(valid_wb_o)

@@ -1,29 +1,6 @@
-//-----------------------------------------------------------------
-//                         biRISC-V CPU
-//                            V0.8.1
-//                     Ultra-Embedded.com
-//                     Copyright 2019-2020
-//
-//                   admin@ultra-embedded.com
-//
-//                     License: Apache 2.0
-//-----------------------------------------------------------------
-// Copyright 2020 Ultra-Embedded.com
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//-----------------------------------------------------------------
+`include "defs.v"
 
-module biriscv_lsu
+module lsu
 //-----------------------------------------------------------------
 // Params
 //-----------------------------------------------------------------
@@ -70,13 +47,6 @@ module biriscv_lsu
     ,output [  5:0]  writeback_exception_o
     ,output          stall_o
 );
-
-
-
-//-----------------------------------------------------------------
-// Includes
-//-----------------------------------------------------------------
-`include "biriscv_defs.v"
 
 //-----------------------------------------------------------------
 // Registers / Wires
@@ -326,7 +296,7 @@ wire        resp_byte_w;
 wire        resp_half_w;
 wire        resp_signed_w;
 
-biriscv_lsu_fifo
+lsu_fifo
 #(
      .WIDTH(36)
     ,.DEPTH(2)
@@ -419,7 +389,7 @@ assign writeback_exception_o         = fault_load_align_w  ? `EXCEPTION_MISALIGN
 
 endmodule 
 
-module biriscv_lsu_fifo
+module lsu_fifo
 //-----------------------------------------------------------------
 // Params
 //-----------------------------------------------------------------
@@ -505,7 +475,4 @@ assign accept_o      = (count_q != DEPTH);
 /* verilator lint_on WIDTH */
 
 assign data_out_o    = ram_q[rd_ptr_q];
-
-
-
 endmodule

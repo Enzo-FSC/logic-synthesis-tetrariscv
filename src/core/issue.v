@@ -1,29 +1,6 @@
-//-----------------------------------------------------------------
-//                         biRISC-V CPU
-//                            V0.8.1
-//                     Ultra-Embedded.com
-//                     Copyright 2019-2020
-//
-//                   admin@ultra-embedded.com
-//
-//                     License: Apache 2.0
-//-----------------------------------------------------------------
-// Copyright 2020 Ultra-Embedded.com
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//-----------------------------------------------------------------
+`include "defs.v"
 
-module biriscv_issue
+module issue
 //-----------------------------------------------------------------
 // Params
 //-----------------------------------------------------------------
@@ -178,10 +155,6 @@ module biriscv_issue
     ,output          mul_hold_o
     ,output          interrupt_inhibit_o
 );
-
-
-
-`include "biriscv_defs.v"
 
 wire enable_dual_issue_w = SUPPORT_DUAL_ISSUE;
 wire enable_muldiv_w     = SUPPORT_MULDIV;
@@ -368,7 +341,7 @@ wire [`EXCEPTION_W-1:0] pipe0_exception_wb_w;
 wire [`EXCEPTION_W-1:0] issue_a_fault_w = opcode_a_fault_r[0] ? `EXCEPTION_FAULT_FETCH:
                                           opcode_a_fault_r[1] ? `EXCEPTION_PAGE_FAULT_INST: `EXCEPTION_W'b0;
 
-biriscv_pipe_ctrl
+pipe_ctrl
 #( 
      .SUPPORT_LOAD_BYPASS(SUPPORT_LOAD_BYPASS)
     ,.SUPPORT_MUL_BYPASS(SUPPORT_MUL_BYPASS)
@@ -490,7 +463,7 @@ wire [`EXCEPTION_W-1:0] pipe1_exception_wb_w;
 wire [`EXCEPTION_W-1:0] issue_b_fault_w = opcode_b_fault_r[0] ? `EXCEPTION_FAULT_FETCH:
                                           opcode_b_fault_r[1] ? `EXCEPTION_PAGE_FAULT_INST: `EXCEPTION_W'b0;
 
-biriscv_pipe_ctrl
+pipe_ctrl
 #( 
      .SUPPORT_LOAD_BYPASS(SUPPORT_LOAD_BYPASS)
     ,.SUPPORT_MUL_BYPASS(SUPPORT_MUL_BYPASS)
@@ -742,7 +715,7 @@ wire [31:0] issue_b_ra_value_w;
 wire [31:0] issue_b_rb_value_w;
 
 // Register file: 2W4R
-biriscv_regfile
+regfile
 #(
      .SUPPORT_REGFILE_XILINX(SUPPORT_REGFILE_XILINX)
     ,.SUPPORT_DUAL_ISSUE(SUPPORT_DUAL_ISSUE)
@@ -935,7 +908,7 @@ assign csr_opcode_invalid_o     = opcode_a_issue_r && issue_a_invalid_w;
 // Checker Interface
 //-------------------------------------------------------------
 `ifdef verilator
-biriscv_trace_sim
+trace_sim
 u_pipe0_dec0_verif
 (
      .valid_i(pipe0_valid_wb_w)
@@ -995,7 +968,7 @@ begin
 end
 endfunction
 
-biriscv_trace_sim
+trace_sim
 u_pipe0_dec1_verif
 (
      .valid_i(pipe1_valid_wb_w)
@@ -1060,6 +1033,4 @@ begin
 end
 endfunction
 `endif
-
-
 endmodule
