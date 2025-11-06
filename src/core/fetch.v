@@ -25,12 +25,12 @@ module fetch
     input [31:0]    branch_pc_i,
     input [1:0]     branch_priv_i,
     input [31:0]    next_pc_f_i,
-    input [1:0]     next_taken_f_i,
+    input [3:0]     next_taken_f_i,
 
     // Outputs
     output          fetch_valid_o,
     output [127:0]  fetch_instr_o,
-    output [1:0]    fetch_pred_branch_o,
+    output [3:0]    fetch_pred_branch_o,
     output          fetch_fault_fetch_o,
     output          fetch_fault_page_o,
     output [31:0]   fetch_pc_o,
@@ -42,15 +42,16 @@ module fetch
     output [31:0]   pc_f_o,
     output          pc_accept_o
 );
+
     //-------------------------------------------------------------
     // Registers / Wires
     //-------------------------------------------------------------
     reg     active_q;
     wire    icache_busy_w;
     wire    stall_w =
-    !fetch_accept_i ||
-    icache_busy_w ||
-    !icache_accept_i;
+        !fetch_accept_i ||
+        icache_busy_w ||
+        !icache_accept_i;
 
     //-------------------------------------------------------------
     // Buffered branch
@@ -68,6 +69,7 @@ module fetch
             assign branch_w = branch_q;
             assign branch_pc_w = branch_pc_q;
             assign branch_priv_w = branch_priv_q;
+
             always @ (posedge clk_i or posedge rst_i)
                 if (rst_i) begin
                     branch_q        <= 1'b0;
@@ -115,6 +117,7 @@ module fetch
     // Stall flag
     //-------------------------------------------------------------
     reg stall_q;
+
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
             stall_q <= 1'b0;
@@ -149,7 +152,7 @@ module fetch
     //-------------------------------------------------------------
     reg [31:0]  pc_f_q;
     reg [31:0]  pc_d_q;
-    reg [1:0]   pred_d_q;
+    reg [3:0]   pred_d_q;
 
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
@@ -189,9 +192,9 @@ module fetch
                 else if (!stall_w)
                     branch_d_q  <= 1'b0;
 
-                assign icache_pc_w          = pc_f_q;
-                assign icache_priv_w        = priv_f_q;
-                assign fetch_resp_drop_w    = branch_w | branch_d_q;
+            assign icache_pc_w          = pc_f_q;
+            assign icache_priv_w        = priv_f_q;
+            assign fetch_resp_drop_w    = branch_w | branch_d_q;
         end else begin
             assign icache_pc_w          = (branch_w & ~stall_q) ? branch_pc_w : pc_f_q;
             assign icache_priv_w        = `PRIV_MACHINE;
@@ -208,11 +211,11 @@ module fetch
 
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
-            pred_d_q <= 2'b0;
+            pred_d_q <= 4'b0;
         else if (icache_rd_o && icache_accept_i)
             pred_d_q <= next_taken_f_i;
         else if (icache_valid_i)
-            pred_d_q <= 2'b0;
+            pred_d_q <= 4'b0;
 
     //-------------------------------------------------------------
     // Outputs
@@ -222,17 +225,18 @@ module fetch
     assign icache_priv_o        = icache_priv_w;
     assign icache_flush_o       = fetch_invalidate_i | icache_invalidate_q;
     assign icache_invalidate_o  = 1'b0;
+
     assign icache_busy_w        =  icache_fetch_q && !icache_valid_i;
 
     //-------------------------------------------------------------
     // Response Buffer
     //-------------------------------------------------------------
-    reg [163:0] skid_buffer_q;
+    reg [165:0] skid_buffer_q;
     reg         skid_valid_q;
 
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i) begin
-            skid_buffer_q  <= 164'b0;
+            skid_buffer_q  <= 166'b0;
             skid_valid_q   <= 1'b0;
         end
         // Instruction output back-pressured - hold in skid buffer
@@ -241,18 +245,19 @@ module fetch
             skid_buffer_q <= {fetch_fault_page_o, fetch_fault_fetch_o, fetch_pred_branch_o, fetch_pc_o, fetch_instr_o};
         end else begin
             skid_valid_q  <= 1'b0;
-            skid_buffer_q <= 164'b0;
+            skid_buffer_q <= 166'b0;
         end
 
     assign fetch_valid_o        = (icache_valid_i || skid_valid_q) & !fetch_resp_drop_w;
     assign fetch_pc_o           = skid_valid_q ? skid_buffer_q[159:128] : {pc_d_q[31:4],4'b0};
     assign fetch_instr_o        = skid_valid_q ? skid_buffer_q[127:0] : icache_inst_i;
-    assign fetch_pred_branch_o  = skid_valid_q ? skid_buffer_q[161:160] : pred_d_q;
+    assign fetch_pred_branch_o  = skid_valid_q ? skid_buffer_q[163:160] : pred_d_q;
 
     // Faults
-    assign fetch_fault_fetch_o  = skid_valid_q ? skid_buffer_q[162] : icache_error_i;
-    assign fetch_fault_page_o   = skid_valid_q ? skid_buffer_q[163] : icache_page_fault_i;
+    assign fetch_fault_fetch_o  = skid_valid_q ? skid_buffer_q[164] : icache_error_i;
+    assign fetch_fault_page_o   = skid_valid_q ? skid_buffer_q[165] : icache_page_fault_i;
 
     assign pc_f_o       = icache_pc_w;
     assign pc_accept_o  = ~stall_w;
+
 endmodule

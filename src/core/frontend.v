@@ -68,8 +68,8 @@ module frontend
     output          fetch0_instr_rd_valid_o,
     output          fetch0_instr_invalid_o,
     output          fetch1_valid_o,
-    output [31:0]  fetch1_instr_o,
-    output [31:0]  fetch1_pc_o,
+    output [31:0]   fetch1_instr_o,
+    output [31:0]   fetch1_pc_o,
     output          fetch1_fault_fetch_o,
     output          fetch1_fault_page_o,
     output          fetch1_instr_exec_o,
@@ -81,8 +81,8 @@ module frontend
     output          fetch1_instr_rd_valid_o,
     output          fetch1_instr_invalid_o,
     output          fetch2_valid_o,
-    output [31:0]  fetch2_instr_o,
-    output [31:0]  fetch2_pc_o,
+    output [31:0]   fetch2_instr_o,
+    output [31:0]   fetch2_pc_o,
     output          fetch2_fault_fetch_o,
     output          fetch2_fault_page_o,
     output          fetch2_instr_exec_o,
@@ -112,10 +112,10 @@ module frontend
     wire [127:0]    fetch_instr_w;
     wire            fetch_fault_page_w;
     wire [31:0]     next_pc_f_w;
-    wire [1:0]      next_taken_f_w;
+    wire [3:0]      next_taken_f_w;
     wire [31:0]     fetch_pc_f_w;
     wire            fetch_accept_w;
-    wire [1:0]      fetch_pred_branch_w;
+    wire [3:0]      fetch_pred_branch_w;
     wire [31:0]     fetch_pc_w;
     wire            fetch_fault_fetch_w;
     wire            fetch_pc_accept_w;
@@ -150,7 +150,6 @@ module frontend
         .pc_f_i(fetch_pc_f_w),
         .pc_accept_i(fetch_pc_accept_w),
 
-
         // Outputs
         .next_pc_f_o(next_pc_f_w),
         .next_taken_f_o(next_taken_f_w)
@@ -161,7 +160,7 @@ module frontend
         .EXTRA_DECODE_STAGE(EXTRA_DECODE_STAGE),
         .SUPPORT_MULDIV(SUPPORT_MULDIV)
     )
-        u_decode
+    u_decode
     (
         // Inputs
         .clk_i(clk_i),

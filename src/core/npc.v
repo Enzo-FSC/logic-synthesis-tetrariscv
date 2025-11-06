@@ -37,350 +37,339 @@ module npc
 
     // Outputs
     output [ 31:0]  next_pc_f_o,
-    // MODIFICADO: [1:0] -> [3:0]. Necessário para o mask de 4-issue.
     output [  3:0]  next_taken_f_o
 );
-localparam RAS_INVALID = 32'h00000001;
+
+    localparam RAS_INVALID = 32'h00000001;
 
     //-----------------------------------------------------------------
     // Branch prediction (BTB, BHT, RAS)
     //-----------------------------------------------------------------
     generate
-    if (SUPPORT_BRANCH_PREDICTION)
-    begin: BRANCH_PREDICTION
+        if (SUPPORT_BRANCH_PREDICTION) begin: BRANCH_PREDICTION
+            wire pred_taken_w;
+            wire pred_ntaken_w;
 
-    wire pred_taken_w;
-    wire pred_ntaken_w;
+            // Info from BTB
+            wire        btb_valid_w;
+            wire [ 1:0] btb_slot_w;
+            wire [31:0] btb_next_pc_w;
+            wire        btb_is_call_w;
+            wire        btb_is_ret_w;
 
-    // Info from BTB
-    wire        btb_valid_w;
-    // MODIFICADO: 'btb_upper_w' (1 bit) -> 'btb_slot_w' (2 bits) para indexar o slot 0-3.
-    wire [ 1:0] btb_slot_w;
-    wire [31:0] btb_next_pc_w;
-    wire        btb_is_call_w;
-    wire        btb_is_ret_w;
-//-----------------------------------------------------------------
-    // Return Address Stack (actual)
-    //-----------------------------------------------------------------
-    reg [NUM_RAS_ENTRIES_W-1:0] ras_index_real_q;
-    reg [NUM_RAS_ENTRIES_W-1:0] ras_index_real_r;
+            //-----------------------------------------------------------------
+            // Return Address Stack (actual)
+            //-----------------------------------------------------------------
+            reg [NUM_RAS_ENTRIES_W-1:0] ras_index_real_q;
+            reg [NUM_RAS_ENTRIES_W-1:0] ras_index_real_r;
 
-    always @ * begin
-        ras_index_real_r = ras_index_real_q;
-        if (branch_request_i & branch_is_call_i)
-            ras_index_real_r = ras_index_real_q + 1;
-        else if (branch_request_i & branch_is_ret_i)
-            ras_index_real_r = ras_index_real_q - 1;
-    end
-
-    always @ (posedge clk_i or posedge rst_i)
-        if (rst_i)
-            ras_index_real_q <= {NUM_RAS_ENTRIES_W{1'b0}};
-        else
-            ras_index_real_q <= ras_index_real_r;
-//-----------------------------------------------------------------
-    // Return Address Stack (speculative)
-    //-----------------------------------------------------------------
-    reg [31:0] ras_stack_q[NUM_RAS_ENTRIES-1:0];
-    reg [NUM_RAS_ENTRIES_W-1:0] ras_index_q;
-
-    reg [NUM_RAS_ENTRIES_W-1:0] ras_index_r;
-    wire [31:0] ras_pc_pred_w   = ras_stack_q[ras_index_q];
-    wire        ras_call_pred_w = RAS_ENABLE & (btb_valid_w & btb_is_call_w) & ~ras_pc_pred_w[0];
-    wire        ras_ret_pred_w  = RAS_ENABLE & (btb_valid_w & btb_is_ret_w) & ~ras_pc_pred_w[0];
-    
-    // MODIFICADO: Lógica de 'push' especulativo do RAS (abaixo)
-    wire [31:0] btb_hit_pc_w = pc_f_i | {btb_slot_w, 2'b00};
-
-    always @ * begin
-        ras_index_r = ras_index_q;
-        // Mispredict - go from confirmed call stack index
-        if (branch_request_i & branch_is_call_i)
-            ras_index_r = ras_index_real_q + 1;
-        else if (branch_request_i & branch_is_ret_i)
-            ras_index_r = ras_index_real_q - 1;
-        // Speculative call / returns
-        else if (ras_call_pred_w & pc_accept_i)
-            ras_index_r = ras_index_q + 1;
-        else if (ras_ret_pred_w & pc_accept_i)
-            ras_index_r = ras_index_q - 1;
-    end
-
-    integer i3;
-    always @ (posedge clk_i or posedge rst_i)
-        if (rst_i) begin
-            for (i3 = 0; i3 < NUM_RAS_ENTRIES; i3 = i3 + 1) 
-            begin
-                ras_stack_q[i3] <= RAS_INVALID;
+            always @ * begin
+                ras_index_real_r = ras_index_real_q;
+                if (branch_request_i & branch_is_call_i)
+                    ras_index_real_r = ras_index_real_q + 1;
+                else if (branch_request_i & branch_is_ret_i)
+                    ras_index_real_r = ras_index_real_q - 1;
             end
-            ras_index_q <= {NUM_RAS_ENTRIES_W{1'b0}};
-        end
-        // On a call push return address onto RAS stack (current PC + 4)
-        else if (branch_request_i & branch_is_call_i) begin
-            ras_stack_q[ras_index_r] <= branch_source_i + 32'd4;
-            ras_index_q              <= ras_index_r;
-        end
-        // On a call push return address onto RAS stack (current PC + 4)
-        else if (ras_call_pred_w & pc_accept_i) begin
-            // MODIFICADO: Usa 'btb_hit_pc_w' (PC do slot correto) em vez da lógica de 2-issue.
-            ras_stack_q[ras_index_r] <= btb_hit_pc_w + 32'd4;
-            ras_index_q              <= ras_index_r;
-        end
-        // Return - pop item from stack
-        else if ((ras_ret_pred_w & pc_accept_i) || (branch_request_i & branch_is_ret_i)) begin
-            ras_index_q              <= ras_index_r;
-        end
 
-    //-----------------------------------------------------------------
-    // Global history register (actual history)
-    //-----------------------------------------------------------------
-    reg [NUM_BHT_ENTRIES_W-1:0] global_history_real_q;
-    always @ (posedge clk_i or posedge rst_i)
-        if (rst_i)
-            global_history_real_q <= {NUM_BHT_ENTRIES_W{1'b0}};
-        else if (branch_is_taken_i || branch_is_not_taken_i)
-            global_history_real_q <= {global_history_real_q[NUM_BHT_ENTRIES_W-2:0], branch_is_taken_i};
-    //-----------------------------------------------------------------
-    // Global history register (speculative)
-    //-----------------------------------------------------------------
-    reg [NUM_BHT_ENTRIES_W-1:0] global_history_q;
-    always @ (posedge clk_i or posedge rst_i)
-        if (rst_i)
-            global_history_q <= {NUM_BHT_ENTRIES_W{1'b0}};
-        // Mispredict - revert to actual branch history to flush out speculative errors
-        else if (branch_request_i)
-            global_history_q <= {global_history_real_q[NUM_BHT_ENTRIES_W-2:0], branch_is_taken_i};
-        // Predicted branch
-        else if (pred_taken_w || pred_ntaken_w)
-            global_history_q <= {global_history_q[NUM_BHT_ENTRIES_W-2:0], pred_taken_w};
-    
-    wire [NUM_BHT_ENTRIES_W-1:0] gshare_wr_entry_w =
-        (branch_request_i ? global_history_real_q : global_history_q) ^
-        branch_source_i[2+NUM_BHT_ENTRIES_W-1:2];
-    // MODIFICADO: Usa 'btb_hit_pc_w' para indexar o GShare.
-    wire [NUM_BHT_ENTRIES_W-1:0] gshare_rd_entry_w = global_history_q ^ btb_hit_pc_w[2+NUM_BHT_ENTRIES_W-1:2];
-    
-    //-----------------------------------------------------------------
-    // Branch prediction bits
-    //-----------------------------------------------------------------
-    reg [1:0]                       bht_sat_q[NUM_BHT_ENTRIES-1:0];
-    wire [NUM_BHT_ENTRIES_W-1:0]    bht_wr_entry_w = GSHARE_ENABLE ? gshare_wr_entry_w : branch_source_i[2+NUM_BHT_ENTRIES_W-1:2];
-    // MODIFICADO: Usa 'btb_hit_pc_w' para indexar o BHT.
-    wire [NUM_BHT_ENTRIES_W-1:0]    bht_rd_entry_w = GSHARE_ENABLE ? gshare_rd_entry_w : btb_hit_pc_w[2+NUM_BHT_ENTRIES_W-1:2];
+            always @ (posedge clk_i or posedge rst_i)
+                if (rst_i)
+                    ras_index_real_q <= {NUM_RAS_ENTRIES_W{1'b0}};
+                else
+                    ras_index_real_q <= ras_index_real_r;
 
-    integer i4;
-    always @ (posedge clk_i or posedge rst_i)
-        if (rst_i) begin
-            for (i4 = 0; i4 < NUM_BHT_ENTRIES; i4 = i4 + 1)
-            begin
-                bht_sat_q[i4] <= 2'd3;
+            //-----------------------------------------------------------------
+            // Return Address Stack (speculative)
+            //-----------------------------------------------------------------
+            reg [31:0] ras_stack_q[NUM_RAS_ENTRIES-1:0];
+            reg [NUM_RAS_ENTRIES_W-1:0] ras_index_q;
+
+            reg [NUM_RAS_ENTRIES_W-1:0] ras_index_r;
+            wire [31:0] ras_pc_pred_w   = ras_stack_q[ras_index_q];
+            wire        ras_call_pred_w = RAS_ENABLE & (btb_valid_w & btb_is_call_w) & ~ras_pc_pred_w[0];
+            wire        ras_ret_pred_w  = RAS_ENABLE & (btb_valid_w & btb_is_ret_w) & ~ras_pc_pred_w[0];
+            wire [31:0] btb_hit_pc_w = pc_f_i | {btb_slot_w, 2'b00};
+
+            always @ * begin
+                ras_index_r = ras_index_q;
+                // Mispredict - go from confirmed call stack index
+                if (branch_request_i & branch_is_call_i)
+                    ras_index_r = ras_index_real_q + 1;
+                else if (branch_request_i & branch_is_ret_i)
+                    ras_index_r = ras_index_real_q - 1;
+                // Speculative call / returns
+                else if (ras_call_pred_w & pc_accept_i)
+                    ras_index_r = ras_index_q + 1;
+                else if (ras_ret_pred_w & pc_accept_i)
+                    ras_index_r = ras_index_q - 1;
             end
-        end
-        else if (branch_is_taken_i && bht_sat_q[bht_wr_entry_w] < 2'd3)
-            bht_sat_q[bht_wr_entry_w] <= bht_sat_q[bht_wr_entry_w] + 2'd1;
-        else if (branch_is_not_taken_i && bht_sat_q[bht_wr_entry_w] > 2'd0)
-            bht_sat_q[bht_wr_entry_w] <= bht_sat_q[bht_wr_entry_w] - 2'd1;
-    
-    wire bht_predict_taken_w = BHT_ENABLE && (bht_sat_q[bht_rd_entry_w] >= 2'd2);
 
-    //-----------------------------------------------------------------
-    // Branch target buffer
-    //-----------------------------------------------------------------
-    reg [31:0]  btb_pc_q[NUM_BTB_ENTRIES-1:0];
-    reg [31:0]  btb_target_q[NUM_BTB_ENTRIES-1:0];
-    reg         btb_is_call_q[NUM_BTB_ENTRIES-1:0];
-    reg         btb_is_ret_q[NUM_BTB_ENTRIES-1:0];
-    reg         btb_is_jmp_q[NUM_BTB_ENTRIES-1:0];
-    reg         btb_valid_r;
-    // MODIFICADO: 'btb_upper_r' (1 bit) -> 'btb_slot_r' (2 bits).
-    reg [ 1:0]  btb_slot_r;
-    reg         btb_is_call_r;
-    reg         btb_is_ret_r;
-    reg [31:0]  btb_next_pc_r;
-    reg         btb_is_jmp_r;
+            integer i3;
+            always @ (posedge clk_i or posedge rst_i)
+                if (rst_i) begin
+                    for (i3 = 0; i3 < NUM_RAS_ENTRIES; i3 = i3 + 1) begin
+                        ras_stack_q[i3] <= RAS_INVALID;
+                    end
+                    ras_index_q <= {NUM_RAS_ENTRIES_W{1'b0}};
+                end
+                // On a call push return address onto RAS stack (current PC + 4)
+                else if (branch_request_i & branch_is_call_i) begin
+                    ras_stack_q[ras_index_r] <= branch_source_i + 32'd4;
+                    ras_index_q              <= ras_index_r;
+                end
+                // On a call push return address onto RAS stack (current PC + 4)
+                else if (ras_call_pred_w & pc_accept_i) begin
+                    ras_stack_q[ras_index_r] <= btb_hit_pc_w + 32'd4;
+                    ras_index_q              <= ras_index_r;
+                end
+                // Return - pop item from stack
+                else if ((ras_ret_pred_w & pc_accept_i) || (branch_request_i & branch_is_ret_i)) begin
+                    ras_index_q              <= ras_index_r;
+                end
 
-    reg [NUM_BTB_ENTRIES_W-1:0] btb_entry_r;
-    integer i0;
-    
-    // MODIFICADO: Lógica 'always @*' do BTB reescrita para 4-issue.
-    always @ * begin
-        btb_valid_r     = 1'b0;
-        btb_slot_r      = 2'b00; // Default para slot 0
-        btb_is_call_r   = 1'b0;
-        btb_is_ret_r    = 1'b0;
-        btb_is_jmp_r    = 1'b0;
-        // Lógica de 4-issue (PC+16)
-        btb_next_pc_r   = {pc_f_i[31:4],4'b0} + 32'd16;
-        btb_entry_r     = {NUM_BTB_ENTRIES_W{1'b0}};
+            //-----------------------------------------------------------------
+            // Global history register (actual history)
+            //-----------------------------------------------------------------
+            reg [NUM_BHT_ENTRIES_W-1:0] global_history_real_q;
 
-        // Loop único para encontrar o *primeiro* desvio em qualquer um dos 4 slots.
-        for (i0 = 0; i0 < NUM_BTB_ENTRIES; i0 = i0 + 1) begin
-            // Slot 0 (PC + 0)
-            if (btb_pc_q[i0] == pc_f_i) begin
-                btb_valid_r     = 1'b1;
-                btb_slot_r      = 2'b00; // Slot 0
-                btb_is_call_r   = btb_is_call_q[i0];
-                btb_is_ret_r    = btb_is_ret_q[i0];
-                btb_is_jmp_r    = btb_is_jmp_q[i0];
-                btb_next_pc_r   = btb_target_q[i0];
-                /* verilator lint_off WIDTH */
-                btb_entry_r     = i0;
-                /* verilator lint_on WIDTH */
+            always @ (posedge clk_i or posedge rst_i)
+                if (rst_i)
+                    global_history_real_q <= {NUM_BHT_ENTRIES_W{1'b0}};
+                else if (branch_is_taken_i || branch_is_not_taken_i)
+                    global_history_real_q <= {global_history_real_q[NUM_BHT_ENTRIES_W-2:0], branch_is_taken_i};
+
+            //-----------------------------------------------------------------
+            // Global history register (speculative)
+            //-----------------------------------------------------------------
+            reg [NUM_BHT_ENTRIES_W-1:0] global_history_q;
+
+            always @ (posedge clk_i or posedge rst_i)
+                if (rst_i)
+                    global_history_q <= {NUM_BHT_ENTRIES_W{1'b0}};
+                // Mispredict - revert to actual branch history to flush out speculative errors
+                else if (branch_request_i)
+                    global_history_q <= {global_history_real_q[NUM_BHT_ENTRIES_W-2:0], branch_is_taken_i};
+                // Predicted branch
+                else if (pred_taken_w || pred_ntaken_w)
+                    global_history_q <= {global_history_q[NUM_BHT_ENTRIES_W-2:0], pred_taken_w};
+
+            wire [NUM_BHT_ENTRIES_W-1:0] gshare_wr_entry_w =
+                (branch_request_i ? global_history_real_q : global_history_q) ^
+                branch_source_i[2+NUM_BHT_ENTRIES_W-1:2];
+            wire [NUM_BHT_ENTRIES_W-1:0] gshare_rd_entry_w = global_history_q ^ btb_hit_pc_w[2+NUM_BHT_ENTRIES_W-1:2];
+
+            //-----------------------------------------------------------------
+            // Branch prediction bits
+            //-----------------------------------------------------------------
+            reg [1:0]                       bht_sat_q[NUM_BHT_ENTRIES-1:0];
+            wire [NUM_BHT_ENTRIES_W-1:0]    bht_wr_entry_w = GSHARE_ENABLE ? gshare_wr_entry_w : branch_source_i[2+NUM_BHT_ENTRIES_W-1:2];
+            wire [NUM_BHT_ENTRIES_W-1:0]    bht_rd_entry_w = GSHARE_ENABLE ? gshare_rd_entry_w : btb_hit_pc_w[2+NUM_BHT_ENTRIES_W-1:2];
+
+            integer i4;
+            always @ (posedge clk_i or posedge rst_i)
+                if (rst_i) begin
+                    for (i4 = 0; i4 < NUM_BHT_ENTRIES; i4 = i4 + 1) begin
+                        bht_sat_q[i4] <= 2'd3;
+                    end
+                end
+                else if (branch_is_taken_i && bht_sat_q[bht_wr_entry_w] < 2'd3)
+                    bht_sat_q[bht_wr_entry_w] <= bht_sat_q[bht_wr_entry_w] + 2'd1;
+                else if (branch_is_not_taken_i && bht_sat_q[bht_wr_entry_w] > 2'd0)
+                    bht_sat_q[bht_wr_entry_w] <= bht_sat_q[bht_wr_entry_w] - 2'd1;
+
+            wire bht_predict_taken_w = BHT_ENABLE && (bht_sat_q[bht_rd_entry_w] >= 2'd2);
+
+            //-----------------------------------------------------------------
+            // Branch target buffer
+            //-----------------------------------------------------------------
+            reg [31:0]  btb_pc_q[NUM_BTB_ENTRIES-1:0];
+            reg [31:0]  btb_target_q[NUM_BTB_ENTRIES-1:0];
+            reg         btb_is_call_q[NUM_BTB_ENTRIES-1:0];
+            reg         btb_is_ret_q[NUM_BTB_ENTRIES-1:0];
+            reg         btb_is_jmp_q[NUM_BTB_ENTRIES-1:0];
+            reg         btb_valid_r;
+            reg [ 1:0]  btb_slot_r;
+            reg         btb_is_call_r;
+            reg         btb_is_ret_r;
+            reg [31:0]  btb_next_pc_r;
+            reg         btb_is_jmp_r;
+
+            reg [NUM_BTB_ENTRIES_W-1:0] btb_entry_r;
+            integer i0;
+
+            always @ * begin
+                btb_valid_r     = 1'b0;
+                btb_slot_r      = 2'b00; // Default para slot 0
+                btb_is_call_r   = 1'b0;
+                btb_is_ret_r    = 1'b0;
+                btb_is_jmp_r    = 1'b0;
+                // Lógica de 4-issue (PC+16)
+                btb_next_pc_r   = {pc_f_i[31:4],4'b0} + 32'd16;
+                btb_entry_r     = {NUM_BTB_ENTRIES_W{1'b0}};
+
+                // Loop único para encontrar o *primeiro* desvio em qualquer um dos 4 slots.
+                for (i0 = 0; i0 < NUM_BTB_ENTRIES; i0 = i0 + 1) begin
+                    // Slot 0 (PC + 0)
+                    if (btb_pc_q[i0] == pc_f_i) begin
+                        btb_valid_r     = 1'b1;
+                        btb_slot_r      = 2'b00; // Slot 0
+                        btb_is_call_r   = btb_is_call_q[i0];
+                        btb_is_ret_r    = btb_is_ret_q[i0];
+                        btb_is_jmp_r    = btb_is_jmp_q[i0];
+                        btb_next_pc_r   = btb_target_q[i0];
+                        /* verilator lint_off WIDTH */
+                        btb_entry_r     = i0;
+                        /* verilator lint_on WIDTH */
+                    end
+                    // Slot 1 (PC + 4)
+                    // (Só verifica se o slot 0 não foi encontrado)
+                    else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd4)) begin
+                        btb_valid_r     = 1'b1;
+                        btb_slot_r      = 2'b01; // Slot 1
+                        btb_is_call_r   = btb_is_call_q[i0];
+                        btb_is_ret_r    = btb_is_ret_q[i0];
+                        btb_is_jmp_r    = btb_is_jmp_q[i0];
+                        btb_next_pc_r   = btb_target_q[i0];
+                        /* verilator lint_off WIDTH */
+                        btb_entry_r     = i0;
+                        /* verilator lint_on WIDTH */
+                    end
+                    // Slot 2 (PC + 8)
+                    // (Só verifica se os slots 0 e 1 não foram encontrados)
+                    else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd8)) begin
+                        btb_valid_r     = 1'b1;
+                        btb_slot_r      = 2'b10; // Slot 2
+                        btb_is_call_r   = btb_is_call_q[i0];
+                        btb_is_ret_r    = btb_is_ret_q[i0];
+                        btb_is_jmp_r    = btb_is_jmp_q[i0];
+                        btb_next_pc_r   = btb_target_q[i0];
+                        /* verilator lint_off WIDTH */
+                        btb_entry_r     = i0;
+                        /* verilator lint_on WIDTH */
+                    end
+                    // Slot 3 (PC + 12)
+                    // (Só verifica se os slots 0, 1 e 2 não foram encontrados)
+                    else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd12)) begin
+                        btb_valid_r     = 1'b1;
+                        btb_slot_r      = 2'b11; // Slot 3
+                        btb_is_call_r   = btb_is_call_q[i0];
+                        btb_is_ret_r    = btb_is_ret_q[i0];
+                        btb_is_jmp_r    = btb_is_jmp_q[i0];
+                        btb_next_pc_r   = btb_target_q[i0];
+                        /* verilator lint_off WIDTH */
+                        btb_entry_r     = i0;
+                        /* verilator lint_on WIDTH */
+                    end
+                end
+                // A lógica de busca original de 2-issue (com ~pc_f_i[2]) foi removida.
             end
-            // Slot 1 (PC + 4)
-            // (Só verifica se o slot 0 não foi encontrado)
-            else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd4)) begin
-                btb_valid_r     = 1'b1;
-                btb_slot_r      = 2'b01; // Slot 1
-                btb_is_call_r   = btb_is_call_q[i0];
-                btb_is_ret_r    = btb_is_ret_q[i0];
-                btb_is_jmp_r    = btb_is_jmp_q[i0];
-                btb_next_pc_r   = btb_target_q[i0];
-                /* verilator lint_off WIDTH */
-                btb_entry_r     = i0;
-                /* verilator lint_on WIDTH */
-            end
-            // Slot 2 (PC + 8)
-            // (Só verifica se os slots 0 e 1 não foram encontrados)
-            else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd8)) begin
-                btb_valid_r     = 1'b1;
-                btb_slot_r      = 2'b10; // Slot 2
-                btb_is_call_r   = btb_is_call_q[i0];
-                btb_is_ret_r    = btb_is_ret_q[i0];
-                btb_is_jmp_r    = btb_is_jmp_q[i0];
-                btb_next_pc_r   = btb_target_q[i0];
-                /* verilator lint_off WIDTH */
-                btb_entry_r     = i0;
-                /* verilator lint_on WIDTH */
-            end
-            // Slot 3 (PC + 12)
-            // (Só verifica se os slots 0, 1 e 2 não foram encontrados)
-            else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd12)) begin
-                btb_valid_r     = 1'b1;
-                btb_slot_r      = 2'b11; // Slot 3
-                btb_is_call_r   = btb_is_call_q[i0];
-                btb_is_ret_r    = btb_is_ret_q[i0];
-                btb_is_jmp_r    = btb_is_jmp_q[i0];
-                btb_next_pc_r   = btb_target_q[i0];
-                /* verilator lint_off WIDTH */
-                btb_entry_r     = i0;
-                /* verilator lint_on WIDTH */
-            end
-        end
-        // A lógica de busca original de 2-issue (com ~pc_f_i[2]) foi removida.
-    end
 
-    reg [NUM_BTB_ENTRIES_W-1:0]  btb_wr_entry_r;
-    wire [NUM_BTB_ENTRIES_W-1:0] btb_wr_alloc_w;
+            reg [NUM_BTB_ENTRIES_W-1:0]  btb_wr_entry_r;
+            wire [NUM_BTB_ENTRIES_W-1:0] btb_wr_alloc_w;
 
-    reg btb_hit_r;
-    reg btb_miss_r;
-    integer i1;
+            reg btb_hit_r;
+            reg btb_miss_r;
+            integer i1;
 
-    always @ * begin
-        btb_wr_entry_r = {NUM_BTB_ENTRIES_W{1'b0}};
-        btb_hit_r      = 1'b0;
-        btb_miss_r     = 1'b0;
-        // Misprediction - learn / update branch details
-        if (branch_request_i) begin
-            for (i1 = 0; i1 < NUM_BTB_ENTRIES; i1 = i1 + 1) begin
-                if (btb_pc_q[i1] == branch_source_i) begin
-                    btb_hit_r = 1'b1;
-                    /* verilator lint_off WIDTH */
-                    btb_wr_entry_r = i1;
-                    /* verilator lint_on WIDTH */
+            always @ * begin
+                btb_wr_entry_r = {NUM_BTB_ENTRIES_W{1'b0}};
+                btb_hit_r      = 1'b0;
+                btb_miss_r     = 1'b0;
+                // Misprediction - learn / update branch details
+                if (branch_request_i) begin
+                    for (i1 = 0; i1 < NUM_BTB_ENTRIES; i1 = i1 + 1) begin
+                        if (btb_pc_q[i1] == branch_source_i) begin
+                            btb_hit_r = 1'b1;
+                            /* verilator lint_off WIDTH */
+                            btb_wr_entry_r = i1;
+                            /* verilator lint_on WIDTH */
+                        end
+                    end
+                    btb_miss_r = ~btb_hit_r;
                 end
             end
-            btb_miss_r = ~btb_hit_r;
+
+            integer i2;
+            always @ (posedge clk_i or posedge rst_i)
+                if (rst_i) begin
+                    for (i2 = 0; i2 < NUM_BTB_ENTRIES; i2 = i2 + 1) begin
+                        btb_pc_q[i2]        <= 32'b0;
+                        btb_target_q[i2]    <= 32'b0;
+                        btb_is_call_q[i2]   <= 1'b0;
+                        btb_is_ret_q[i2]    <= 1'b0;
+                        btb_is_jmp_q[i2]    <= 1'b0;
+                    end
+                end
+                // Hit - update entry
+                else if (btb_hit_r) begin
+                    btb_pc_q[btb_wr_entry_r]            <= branch_source_i;
+                    if (branch_is_taken_i)
+                        btb_target_q[btb_wr_entry_r]    <= branch_pc_i;
+                    btb_is_call_q[btb_wr_entry_r]       <= branch_is_call_i;
+                    btb_is_ret_q[btb_wr_entry_r]        <= branch_is_ret_i;
+                    btb_is_jmp_q[btb_wr_entry_r]        <= branch_is_jmp_i;
+                end
+                // Miss - allocate entry
+                else if (btb_miss_r) begin
+                    btb_pc_q[btb_wr_alloc_w]        <= branch_source_i;
+                    btb_target_q[btb_wr_alloc_w]    <= branch_pc_i;
+                    btb_is_call_q[btb_wr_alloc_w]   <= branch_is_call_i;
+                    btb_is_ret_q[btb_wr_alloc_w]    <= branch_is_ret_i;
+                    btb_is_jmp_q[btb_wr_alloc_w]    <= branch_is_jmp_i;
+                end
+
+            //-----------------------------------------------------------------
+            // Replacement Selection
+            //-----------------------------------------------------------------
+            npc_lfsr
+            #(
+                .DEPTH(NUM_BTB_ENTRIES),
+                .ADDR_W(NUM_BTB_ENTRIES_W)
+            )
+            u_lru
+            (
+                .clk_i(clk_i),
+                .rst_i(rst_i),
+                .hit_i(btb_valid_r),
+                .hit_entry_i(btb_entry_r),
+                .alloc_i(btb_miss_r),
+                .alloc_entry_o(btb_wr_alloc_w)
+            );
+
+            //-----------------------------------------------------------------
+            // Outputs
+            //-----------------------------------------------------------------
+            assign btb_valid_w      = btb_valid_r;
+            assign btb_slot_w       = btb_slot_r;
+            assign btb_is_call_w    = btb_is_call_r;
+            assign bbbtb_is_ret_w     = btb_is_ret_r;
+            assign next_pc_f_o      =
+                ras_ret_pred_w ?
+                ras_pc_pred_w :
+                (bht_predict_taken_w | btb_is_jmp_r) ?
+                btb_next_pc_r :
+                // Lógica de 4-issue (PC+16)
+                {pc_f_i[31:4],4'b0} + 32'd16;
+            // Gera um mask de 4 bits indicando quais slots são válidos.
+            // Ex: Se o desvio está no slot 1 (01), o mask é 4'b0011 (slots 0 e 1 são válidos).
+            // Ex: Se o desvio está no slot 2 (10), o mask é 4'b0111 (slots 0, 1 e 2 são válidos).
+            assign next_taken_f_o =
+                (btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r)) ?
+                // '4'b0001 << btb_slot_w' seleciona o bit do slot (0001, 0010, 0100, 1000)
+                // '... - 1' transforma em um mask (0001, 0011, 0111, 1111)
+                ( (4'b0001 << (btb_slot_w + 1)) - 1 ) :
+                4'b1111;
+
+            assign pred_taken_w     = btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r) & pc_accept_i;
+            assign pred_ntaken_w    = btb_valid_w & ~pred_taken_w & pc_accept_i;
+
         end
-    end
-
-    integer i2;
-    always @ (posedge clk_i or posedge rst_i)
-        if (rst_i) begin
-            for (i2 = 0; i2 < NUM_BTB_ENTRIES; i2 = i2 + 1) begin
-                btb_pc_q[i2]        <= 32'b0;
-                btb_target_q[i2]    <= 32'b0;
-                btb_is_call_q[i2]   <= 1'b0;
-                btb_is_ret_q[i2]    <= 1'b0;
-                btb_is_jmp_q[i2]    <= 1'b0;
-            end
+        //-----------------------------------------------------------------
+        // No branch prediction
+        //-----------------------------------------------------------------
+        else begin: NO_BRANCH_PREDICTION
+            assign next_pc_f_o    = {pc_f_i[31:4],4'b0} + 32'd16;
+            assign next_taken_f_o = 4'b1111;
         end
-        // Hit - update entry
-        else if (btb_hit_r) begin
-            btb_pc_q[btb_wr_entry_r]            <= branch_source_i;
-            if (branch_is_taken_i)
-                btb_target_q[btb_wr_entry_r]    <= branch_pc_i;
-            btb_is_call_q[btb_wr_entry_r]       <= branch_is_call_i;
-            btb_is_ret_q[btb_wr_entry_r]        <= branch_is_ret_i;
-            btb_is_jmp_q[btb_wr_entry_r]        <= branch_is_jmp_i;
-        end
-        // Miss - allocate entry
-        else if (btb_miss_r) begin
-            btb_pc_q[btb_wr_alloc_w]        <= branch_source_i;
-            btb_target_q[btb_wr_alloc_w]    <= branch_pc_i;
-            btb_is_call_q[btb_wr_alloc_w]   <= branch_is_call_i;
-            btb_is_ret_q[btb_wr_alloc_w]    <= branch_is_ret_i;
-            btb_is_jmp_q[btb_wr_alloc_w]    <= branch_is_jmp_i;
-        end
-
-    //-----------------------------------------------------------------
-    // Replacement Selection
-    //-----------------------------------------------------------------
-    npc_lfsr
-    #(
-        .DEPTH(NUM_BTB_ENTRIES),
-        .ADDR_W(NUM_BTB_ENTRIES_W)
-    )
-    u_lru
-    (
-        .clk_i(clk_i),
-        .rst_i(rst_i),
-        .hit_i(btb_valid_r),
-        .hit_entry_i(btb_entry_r),
-        .alloc_i(btb_miss_r),
-    
-        .alloc_entry_o(btb_wr_alloc_w)
-    );
-
-    //-----------------------------------------------------------------
-    // Outputs
-    //-----------------------------------------------------------------
-    assign btb_valid_w      = btb_valid_r;
-    // MODIFICADO: 'btb_upper_w' -> 'btb_slot_w'
-    assign btb_slot_w       = btb_slot_r;
-    assign btb_is_call_w    = btb_is_call_r;
-    assign btb_is_ret_w     = btb_is_ret_r;
-    assign next_pc_f_o      = ras_ret_pred_w ?
-                              ras_pc_pred_w :
-                              (bht_predict_taken_w | btb_is_jmp_r) ? btb_next_pc_r :
-                              // Lógica de 4-issue (PC+16)
-                              {pc_f_i[31:4],4'b0} + 32'd16;
-    
-    // MODIFICADO: Lógica de 'next_taken_f_o' para 4-issue.
-    // Gera um mask de 4 bits indicando quais slots são válidos.
-    // Ex: Se o desvio está no slot 1 (01), o mask é 4'b0011 (slots 0 e 1 são válidos).
-    // Ex: Se o desvio está no slot 2 (10), o mask é 4'b0111 (slots 0, 1 e 2 são válidos).
-    assign next_taken_f_o = (btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r)) ?
-                              // '4'b0001 << btb_slot_w' seleciona o bit do slot (0001, 0010, 0100, 1000)
-                              // '... - 1' transforma em um mask (0001, 0011, 0111, 1111)
-                              (4'b0001 << btb_slot_w) - 4'b0001 + 4'b0001 :
-                              4'b0;
-
-    assign pred_taken_w     = btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r) & pc_accept_i;
-    assign pred_ntaken_w    = btb_valid_w & ~pred_taken_w & pc_accept_i;
-    end
-    //-----------------------------------------------------------------
-    // No branch prediction
-    //-----------------------------------------------------------------
-    else
-    begin: NO_BRANCH_PREDICTION
-
-    assign next_pc_f_o    = {pc_f_i[31:4],4'b0} + 32'd16;
-    // MODIFICADO: [1:0] -> [3:0]
-    assign next_taken_f_o = 4'b0;
-
-    end
     endgenerate
 endmodule
 
@@ -409,20 +398,21 @@ module npc_lfsr
     // Outputs
     output [ADDR_W-1:0] alloc_entry_o
 );
-//-----------------------------------------------------------------
-// Scheme: LFSR
-//-----------------------------------------------------------------
-reg [15:0] lfsr_q;
+    //-----------------------------------------------------------------
+    // Scheme: LFSR
+    //-----------------------------------------------------------------
+    reg [15:0] lfsr_q;
 
-always @ (posedge clk_i or posedge rst_i)
-    if (rst_i)
-        lfsr_q <= INITIAL_VALUE;
-    else if (alloc_i) begin
-        if (lfsr_q[0])
-            lfsr_q <= {1'b0, lfsr_q[15:1]} ^ TAP_VALUE;
-        else
-            lfsr_q <= {1'b0, lfsr_q[15:1]};
-    end
+    always @ (posedge clk_i or posedge rst_i)
+        if (rst_i)
+            lfsr_q <= INITIAL_VALUE;
+        else if (alloc_i) begin
+            if (lfsr_q[0])
+                lfsr_q <= {1'b0, lfsr_q[15:1]} ^ TAP_VALUE;
+            else
+                lfsr_q <= {1'b0, lfsr_q[15:1]};
+        end
 
-assign alloc_entry_o = lfsr_q[ADDR_W-1:0];
+    assign alloc_entry_o = lfsr_q[ADDR_W-1:0];
+
 endmodule
