@@ -20,13 +20,13 @@ biRISC-V is a 32-bit dual issue RISC-V CPU made by [Ultraembedded](http://github
 
 ### Features
 * 32-bit RISC-V ISA CPU core.
-* Superscalar (dual-issue) in-order 6 or 7 stage pipeline.
+* Superscalar (four-issue) in-order 6 or 7 stage pipeline.
 * Support RISC-V’s integer (I), multiplication and division (M), and CSR instructions (Z) extensions (RV32IMZicsr).
 * Branch prediction (bimodel/gshare) with configurable depth branch target buffer (BTB) and return address stack (RAS).
-* 64-bit instruction fetch, 32-bit data access.
-* 2 x integer ALU (arithmetic, shifters and branch units).
+* 128-bit instruction fetch, 32-bit data access.
+* 4 x integer ALU (arithmetic, shifters and branch units).
 * 1 x load store unit, 1 x out-of-pipeline divider.
-* Issue and complete up to 2 independent instructions per cycle.
+* Issue and complete up to 4 independent instructions per cycle.
 * Supports user, supervisor and machine mode privilege levels.
 * Basic MMU support - capable of booting Linux with atomics (RV-A) SW emulation.
 * Implements base ISA spec [v2.1](docs/riscv_isa_spec.pdf) and privileged ISA spec [v1.11](docs/riscv_privileged_spec.pdf).
@@ -34,8 +34,6 @@ biRISC-V is a 32-bit dual issue RISC-V CPU made by [Ultraembedded](http://github
 * Support for instruction / data cache, AXI bus interfaces or tightly coupled memories.
 * Configurable number of pipeline stages, result forwarding options, and branch prediction resources.
 * Synthesizable Verilog 2001, Verilator and FPGA friendly.
-* Coremark:  **4.1 CoreMark/MHz**
-* Dhrystone: **1.9 DMIPS/MHz** ('legal compile options' / 337 instructions per iteration)
 
 *A sequence showing execution of 2 instructions per cycle;*
 ![Dual-Issue](docs/dual_issue.png)
