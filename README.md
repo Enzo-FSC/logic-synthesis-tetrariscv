@@ -1,7 +1,7 @@
 <div align="center"> <h1> Computer Organization and Architecture III  </h1>
 </div>
 
-This project is part of the Computer Organization and Architecture III (2025.2) course. The objective of the project was to modify the [biRISC-V Core] (http://github.com/ultraembedded/biriscv) to implement a 32-bit superscalar four-issue in-order RISC-V core, run logic synthesis using GPDK45, and perform a gate-level simulation.
+This project is part of the Computer Organization and Architecture III (2025.2) course. The objective of the project was to modify the http://github.com/ultraembedded/biriscv to implement a 32-bit superscalar four-issue in-order RISC-V core, run logic synthesis using GPDK45, and perform a gate-level simulation.
 
 
 1. [biRISC-V](#biriscv)
@@ -16,7 +16,7 @@ This project is part of the Computer Organization and Architecture III (2025.2) 
 biRISC-V is a 32-bit dual issue RISC-V CPU made by [Ultraembedded](http://github.com/ultraembedded).
 
 
-![biRISC-V](docs/biRISC-V.png)
+![biRISC-V](docs/TetraRISCV.png)
 
 ### Features
 * 32-bit RISC-V ISA CPU core.
