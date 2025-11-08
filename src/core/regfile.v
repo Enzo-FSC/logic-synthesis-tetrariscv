@@ -18,7 +18,7 @@ module regfile
     // rd - register destination
     input  [  4:0]  rd0_i,
     input  [  4:0]  rd1_i,
-    input  [ 31:0]  rd2_i,
+    input  [  4:0]  rd2_i,
     input  [  4:0]  rd3_i,
     input  [ 31:0]  rd0_value_i,
     input  [ 31:0]  rd1_value_i,
