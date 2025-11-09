@@ -11,7 +11,7 @@ This project is part of the Computer Organization and Architecture III (2025.2) 
 
 <hr />
 
-## biRISC-V <a name="biriscv"></a>
+## TetraRISC-V <a name="biriscv"></a>
 
 biRISC-V is a 32-bit dual issue RISC-V CPU made by [Ultraembedded](http://github.com/ultraembedded).
 
