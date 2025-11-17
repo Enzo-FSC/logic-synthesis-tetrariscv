@@ -44,7 +44,7 @@ module regfile
     output [ 31:0]  ra2_value_o,
     output [ 31:0]  rb2_value_o,
     output [ 31:0]  ra3_value_o,
-    output [ 31:0]  rb3_value_o,
+    output [ 31:0]  rb3_value_o
 );
 
 //-----------------------------------------------------------------
