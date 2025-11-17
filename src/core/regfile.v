@@ -5,7 +5,7 @@ module regfile
 #(
     parameter SUPPORT_REGFILE_XILINX = 0,
     //parameter SUPPORT_DUAL_ISSUE = 1,
-    parameter NUM_READ_PORTS = 12,
+    parameter NUM_READ_PORTS = 8,
     parameter NUM_WRITE_PORTS = 4
 )
 //-----------------------------------------------------------------
@@ -15,6 +15,7 @@ module regfile
     // Inputs
     input           clk_i,
     input           rst_i,
+
     // rd - register destination
     input  [  4:0]  rd0_i,
     input  [  4:0]  rd1_i,
@@ -24,34 +25,26 @@ module regfile
     input  [ 31:0]  rd1_value_i,
     input  [ 31:0]  rd2_value_i,
     input  [ 31:0]  rd3_value_i,
+
     // rs - register source
     input  [  4:0]  ra0_i,
     input  [  4:0]  rb0_i,
-    input  [  4:0]  rc0_i,
     input  [  4:0]  ra1_i,
     input  [  4:0]  rb1_i,
-    input  [  4:0]  rc1_i,
     input  [  4:0]  ra2_i,
     input  [  4:0]  rb2_i,
-    input  [  4:0]  rc2_i,
     input  [  4:0]  ra3_i,
     input  [  4:0]  rb3_i,
-    input  [  4:0]  rc3_i
-
 
     // Outputs
     output [ 31:0]  ra0_value_o,
     output [ 31:0]  rb0_value_o,
-    output [ 31:0]  rc0_value_o,
     output [ 31:0]  ra1_value_o,
     output [ 31:0]  rb1_value_o,
-    output [ 31:0]  rc1_value_o,
     output [ 31:0]  ra2_value_o,
     output [ 31:0]  rb2_value_o,
-    output [ 31:0]  rc2_value_o,
     output [ 31:0]  ra3_value_o,
     output [ 31:0]  rb3_value_o,
-    output [ 31:0]  rc3_value_o
 );
 
 //-----------------------------------------------------------------
@@ -165,27 +158,26 @@ begin
 end
 else
 begin
-    //write reg r1
     if      (rd0_i == 5'd1) reg_r1_q <= rd0_value_i;
     else if (rd1_i == 5'd1) reg_r1_q <= rd1_value_i;
     else if (rd2_i == 5'd1) reg_r1_q <= rd2_value_i;
     else if (rd3_i == 5'd1) reg_r1_q <= rd3_value_i;
-    //write reg r2
+
     if      (rd0_i == 5'd2) reg_r2_q <= rd0_value_i;
     else if (rd1_i == 5'd2) reg_r2_q <= rd1_value_i;
     else if (rd2_i == 5'd2) reg_r2_q <= rd2_value_i;
     else if (rd3_i == 5'd2) reg_r2_q <= rd3_value_i;
-    //write reg r3
+
     if      (rd0_i == 5'd3) reg_r3_q <= rd0_value_i;
     else if (rd1_i == 5'd3) reg_r3_q <= rd1_value_i;
     else if (rd2_i == 5'd3) reg_r3_q <= rd2_value_i;
     else if (rd3_i == 5'd3) reg_r3_q <= rd3_value_i;
-    //write reg r4
+
     if      (rd0_i == 5'd4) reg_r4_q <= rd0_value_i;
     else if (rd1_i == 5'd4) reg_r4_q <= rd1_value_i;
     else if (rd2_i == 5'd4) reg_r4_q <= rd2_value_i;
     else if (rd3_i == 5'd4) reg_r4_q <= rd3_value_i;
-    //write reg r5
+
     if      (rd0_i == 5'd5) reg_r5_q <= rd0_value_i;
     else if (rd1_i == 5'd5) reg_r5_q <= rd1_value_i;
     else if (rd2_i == 5'd5) reg_r5_q <= rd2_value_i;
@@ -327,7 +319,6 @@ end
 //-----------------------------------------------------------------
 reg [31:0] ra0_value_r;
 reg [31:0] rb0_value_r;
-reg [31:0] rc0_value_r;
 
 always @ *
 begin
@@ -400,50 +391,13 @@ begin
     5'd31: rb0_value_r = reg_r31_q;
     default : rb0_value_r = 32'h00000000;
     endcase
-
-    case (rc0_i)
-    5'd1: rc0_value_r = reg_r1_q;
-    5'd2: rc0_value_r = reg_r2_q;
-    5'd3: rc0_value_r = reg_r3_q;
-    5'd4: rc0_value_r = reg_r4_q;
-    5'd5: rc0_value_r = reg_r5_q;
-    5'd6: rc0_value_r = reg_r6_q;
-    5'd7: rc0_value_r = reg_r7_q;
-    5'd8: rc0_value_r = reg_r8_q;
-    5'd9: rc0_value_r = reg_r9_q;
-    5'd10: rc0_value_r = reg_r10_q;
-    5'd11: rc0_value_r = reg_r11_q;
-    5'd12: rc0_value_r = reg_r12_q;
-    5'd13: rc0_value_r = reg_r13_q;
-    5'd14: rc0_value_r = reg_r14_q;
-    5'd15: rc0_value_r = reg_r15_q;
-    5'd16: rc0_value_r = reg_r16_q;
-    5'd17: rc0_value_r = reg_r17_q;
-    5'd18: rc0_value_r = reg_r18_q;
-    5'd19: rc0_value_r = reg_r19_q;
-    5'd20: rc0_value_r = reg_r20_q;
-    5'd21: rc0_value_r = reg_r21_q;
-    5'd22: rc0_value_r = reg_r22_q;
-    5'd23: rc0_value_r = reg_r23_q;
-    5'd24: rc0_value_r = reg_r24_q;
-    5'd25: rc0_value_r = reg_r25_q;
-    5'd26: rc0_value_r = reg_r26_q;
-    5'd27: rc0_value_r = reg_r27_q;
-    5'd28: rc0_value_r = reg_r28_q;
-    5'd29: rc0_value_r = reg_r29_q;
-    5'd30: rc0_value_r = reg_r30_q;
-    5'd31: rc0_value_r = reg_r31_q;
-    default : rc0_value_r = 32'h00000000;
-    endcase
 end
 
 assign ra0_value_o = ra0_value_r;
 assign rb0_value_o = rb0_value_r;
-assign rc0_value_o = rc0_value_r;
 
 reg [31:0] ra1_value_r;
 reg [31:0] rb1_value_r;
-reg [31:0] rc1_value_r;
 
 always @ *
 begin
@@ -516,50 +470,13 @@ begin
     5'd31: rb1_value_r = reg_r31_q;
     default : rb1_value_r = 32'h00000000;
     endcase
-
-    case (rc1_i)
-    5'd1: rc1_value_r = reg_r1_q;
-    5'd2: rc1_value_r = reg_r2_q;
-    5'd3: rc1_value_r = reg_r3_q;
-    5'd4: rc1_value_r = reg_r4_q;
-    5'd5: rc1_value_r = reg_r5_q;
-    5'd6: rc1_value_r = reg_r6_q;
-    5'd7: rc1_value_r = reg_r7_q;
-    5'd8: rc1_value_r = reg_r8_q;
-    5'd9: rc1_value_r = reg_r9_q;
-    5'd10: rc1_value_r = reg_r10_q;
-    5'd11: rc1_value_r = reg_r11_q;
-    5'd12: rc1_value_r = reg_r12_q;
-    5'd13: rc1_value_r = reg_r13_q;
-    5'd14: rc1_value_r = reg_r14_q;
-    5'd15: rc1_value_r = reg_r15_q;
-    5'd16: rc1_value_r = reg_r16_q;
-    5'd17: rc1_value_r = reg_r17_q;
-    5'd18: rc1_value_r = reg_r18_q;
-    5'd19: rc1_value_r = reg_r19_q;
-    5'd20: rc1_value_r = reg_r20_q;
-    5'd21: rc1_value_r = reg_r21_q;
-    5'd22: rc1_value_r = reg_r22_q;
-    5'd23: rc1_value_r = reg_r23_q;
-    5'd24: rc1_value_r = reg_r24_q;
-    5'd25: rc1_value_r = reg_r25_q;
-    5'd26: rc1_value_r = reg_r26_q;
-    5'd27: rc1_value_r = reg_r27_q;
-    5'd28: rc1_value_r = reg_r28_q;
-    5'd29: rc1_value_r = reg_r29_q;
-    5'd30: rc1_value_r = reg_r30_q;
-    5'd31: rc1_value_r = reg_r31_q;
-    default : rc1_value_r = 32'h00000000;
-    endcase
 end
 
 assign ra1_value_o = ra1_value_r;
 assign rb1_value_o = rb1_value_r;
-assign rc1_value_o = rc1_value_r;
 
 reg [31:0] ra2_value_r;
 reg [31:0] rb2_value_r;
-reg [31:0] rc2_value_r;
 
 always @ *
 begin
@@ -632,50 +549,13 @@ begin
     5'd31: rb2_value_r = reg_r31_q;
     default : rb2_value_r = 32'h00000000;
     endcase
-
-    case (rc2_i)
-    5'd1: rc2_value_r = reg_r1_q;
-    5'd2: rc2_value_r = reg_r2_q;
-    5'd3: rc2_value_r = reg_r3_q;
-    5'd4: rc2_value_r = reg_r4_q;
-    5'd5: rc2_value_r = reg_r5_q;
-    5'd6: rc2_value_r = reg_r6_q;
-    5'd7: rc2_value_r = reg_r7_q;
-    5'd8: rc2_value_r = reg_r8_q;
-    5'd9: rc2_value_r = reg_r9_q;
-    5'd10: rc2_value_r = reg_r10_q;
-    5'd11: rc2_value_r = reg_r11_q;
-    5'd12: rc2_value_r = reg_r12_q;
-    5'd13: rc2_value_r = reg_r13_q;
-    5'd14: rc2_value_r = reg_r14_q;
-    5'd15: rc2_value_r = reg_r15_q;
-    5'd16: rc2_value_r = reg_r16_q;
-    5'd17: rc2_value_r = reg_r17_q;
-    5'd18: rc2_value_r = reg_r18_q;
-    5'd19: rc2_value_r = reg_r19_q;
-    5'd20: rc2_value_r = reg_r20_q;
-    5'd21: rc2_value_r = reg_r21_q;
-    5'd22: rc2_value_r = reg_r22_q;
-    5'd23: rc2_value_r = reg_r23_q;
-    5'd24: rc2_value_r = reg_r24_q;
-    5'd25: rc2_value_r = reg_r25_q;
-    5'd26: rc2_value_r = reg_r26_q;
-    5'd27: rc2_value_r = reg_r27_q;
-    5'd28: rc2_value_r = reg_r28_q;
-    5'd29: rc2_value_r = reg_r29_q;
-    5'd30: rc2_value_r = reg_r30_q;
-    5'd31: rc2_value_r = reg_r31_q;
-    default : rc2_value_r = 32'h00000000;
-    endcase
 end
 
 assign ra2_value_o = ra2_value_r;
 assign rb2_value_o = rb2_value_r;
-assign rc2_value_o = rc2_value_r;
 
 reg [31:0] ra3_value_r;
 reg [31:0] rb3_value_r;
-reg [31:0] rc3_value_r;
 
 always @ *
 begin
@@ -748,46 +628,10 @@ begin
     5'd31: rb3_value_r = reg_r31_q;
     default : rb3_value_r = 32'h00000000;
     endcase
-
-    case (rc3_i)
-    5'd1: rc3_value_r = reg_r1_q;
-    5'd2: rc3_value_r = reg_r2_q;
-    5'd3: rc3_value_r = reg_r3_q;
-    5'd4: rc3_value_r = reg_r4_q;
-    5'd5: rc3_value_r = reg_r5_q;
-    5'd6: rc3_value_r = reg_r6_q;
-    5'd7: rc3_value_r = reg_r7_q;
-    5'd8: rc3_value_r = reg_r8_q;
-    5'd9: rc3_value_r = reg_r9_q;
-    5'd10: rc3_value_r = reg_r10_q;
-    5'd11: rc3_value_r = reg_r11_q;
-    5'd12: rc3_value_r = reg_r12_q;
-    5'd13: rc3_value_r = reg_r13_q;
-    5'd14: rc3_value_r = reg_r14_q;
-    5'd15: rc3_value_r = reg_r15_q;
-    5'd16: rc3_value_r = reg_r16_q;
-    5'd17: rc3_value_r = reg_r17_q;
-    5'd18: rc3_value_r = reg_r18_q;
-    5'd19: rc3_value_r = reg_r19_q;
-    5'd20: rc3_value_r = reg_r20_q;
-    5'd21: rc3_value_r = reg_r21_q;
-    5'd22: rc3_value_r = reg_r22_q;
-    5'd23: rc3_value_r = reg_r23_q;
-    5'd24: rc3_value_r = reg_r24_q;
-    5'd25: rc3_value_r = reg_r25_q;
-    5'd26: rc3_value_r = reg_r26_q;
-    5'd27: rc3_value_r = reg_r27_q;
-    5'd28: rc3_value_r = reg_r28_q;
-    5'd29: rc3_value_r = reg_r29_q;
-    5'd30: rc3_value_r = reg_r30_q;
-    5'd31: rc3_value_r = reg_r31_q;
-    default : rc3_value_r = 32'h00000000;
-    endcase
 end
 
 assign ra3_value_o = ra3_value_r;
 assign rb3_value_o = rb3_value_r;
-assign rc3_value_o = rc3_value_r;
 
 //-------------------------------------------------------------
 // get_register: Read register file
