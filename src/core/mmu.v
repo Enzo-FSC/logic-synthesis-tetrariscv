@@ -5,72 +5,71 @@ module mmu
 // Params
 //-----------------------------------------------------------------
 #(
-     parameter MEM_CACHE_ADDR_MIN = 0
-    ,parameter MEM_CACHE_ADDR_MAX = 32'hffffffff
-    ,parameter SUPPORT_MMU      = 1
+    parameter MEM_CACHE_ADDR_MIN = 0,
+    parameter MEM_CACHE_ADDR_MAX = 32'hffffffff,
+    parameter SUPPORT_MMU        = 1
 )
 //-----------------------------------------------------------------
 // Ports
 //-----------------------------------------------------------------
 (
     // Inputs
-     input           clk_i
-    ,input           rst_i
-    ,input  [  1:0]  priv_d_i
-    ,input           sum_i
-    ,input           mxr_i
-    ,input           flush_i
-    ,input  [ 31:0]  satp_i
-    ,input           fetch_in_rd_i
-    ,input           fetch_in_flush_i
-    ,input           fetch_in_invalidate_i
-    ,input  [ 31:0]  fetch_in_pc_i
-    ,input  [  1:0]  fetch_in_priv_i
-    ,input           fetch_out_accept_i
-    ,input           fetch_out_valid_i
-    ,input           fetch_out_error_i
-    ,input  [ 63:0]  fetch_out_inst_i
-    ,input  [ 31:0]  lsu_in_addr_i
-    ,input  [ 31:0]  lsu_in_data_wr_i
-    ,input           lsu_in_rd_i
-    ,input  [  3:0]  lsu_in_wr_i
-    ,input           lsu_in_cacheable_i
-    ,input  [ 10:0]  lsu_in_req_tag_i
-    ,input           lsu_in_invalidate_i
-    ,input           lsu_in_writeback_i
-    ,input           lsu_in_flush_i
-    ,input  [ 31:0]  lsu_out_data_rd_i
-    ,input           lsu_out_accept_i
-    ,input           lsu_out_ack_i
-    ,input           lsu_out_error_i
-    ,input  [ 10:0]  lsu_out_resp_tag_i
-
+    input           clk_i,
+    input           rst_i,
+    input  [  1:0]  priv_d_i,
+    input           sum_i,
+    input           mxr_i,
+    input           flush_i,
+    input  [ 31:0]  satp_i,
+    input           fetch_in_rd_i,
+    input           fetch_in_flush_i,
+    input           fetch_in_invalidate_i,
+    input  [ 31:0]  fetch_in_pc_i,
+    input  [  1:0]  fetch_in_priv_i,
+    input           fetch_out_accept_i,
+    input           fetch_out_valid_i,
+    input           fetch_out_error_i,
+    input  [127:0]  fetch_out_inst_i,
+    input  [ 31:0]  lsu_in_addr_i,
+    input  [ 31:0]  lsu_in_data_wr_i,
+    input           lsu_in_rd_i,
+    input  [  3:0]  lsu_in_wr_i,
+    input           lsu_in_cacheable_i,
+    input  [ 10:0]  lsu_in_req_tag_i,
+    input           lsu_in_invalidate_i,
+    input           lsu_in_writeback_i,
+    input           lsu_in_flush_i,
+    input  [ 31:0]  lsu_out_data_rd_i,
+    input           lsu_out_accept_i,
+    input           lsu_out_ack_i,
+    input           lsu_out_error_i,
+    input  [ 10:0]  lsu_out_resp_tag_i,
     // Outputs
-    ,output          fetch_in_accept_o
-    ,output          fetch_in_valid_o
-    ,output          fetch_in_error_o
-    ,output [ 63:0]  fetch_in_inst_o
-    ,output          fetch_out_rd_o
-    ,output          fetch_out_flush_o
-    ,output          fetch_out_invalidate_o
-    ,output [ 31:0]  fetch_out_pc_o
-    ,output          fetch_in_fault_o
-    ,output [ 31:0]  lsu_in_data_rd_o
-    ,output          lsu_in_accept_o
-    ,output          lsu_in_ack_o
-    ,output          lsu_in_error_o
-    ,output [ 10:0]  lsu_in_resp_tag_o
-    ,output [ 31:0]  lsu_out_addr_o
-    ,output [ 31:0]  lsu_out_data_wr_o
-    ,output          lsu_out_rd_o
-    ,output [  3:0]  lsu_out_wr_o
-    ,output          lsu_out_cacheable_o
-    ,output [ 10:0]  lsu_out_req_tag_o
-    ,output          lsu_out_invalidate_o
-    ,output          lsu_out_writeback_o
-    ,output          lsu_out_flush_o
-    ,output          lsu_in_load_fault_o
-    ,output          lsu_in_store_fault_o
+    output          fetch_in_accept_o,
+    output          fetch_in_valid_o,
+    output          fetch_in_error_o,
+    output [127:0]  fetch_in_inst_o,
+    output          fetch_out_rd_o,
+    output          fetch_out_flush_o,
+    output          fetch_out_invalidate_o,
+    output [ 31:0]  fetch_out_pc_o,
+    output          fetch_in_fault_o,
+    output [ 31:0]  lsu_in_data_rd_o,
+    output          lsu_in_accept_o,
+    output          lsu_in_ack_o,
+    output          lsu_in_error_o,
+    output [ 10:0]  lsu_in_resp_tag_o,
+    output [ 31:0]  lsu_out_addr_o,
+    output [ 31:0]  lsu_out_data_wr_o,
+    output          lsu_out_rd_o,
+    output [  3:0]  lsu_out_wr_o,
+    output          lsu_out_cacheable_o,
+    output [ 10:0]  lsu_out_req_tag_o,
+    output          lsu_out_invalidate_o,
+    output          lsu_out_writeback_o,
+    output          lsu_out_flush_o,
+    output          lsu_in_load_fault_o,
+    output          lsu_in_store_fault_o
 );
 
 //-----------------------------------------------------------------
