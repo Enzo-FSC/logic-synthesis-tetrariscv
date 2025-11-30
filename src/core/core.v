@@ -227,7 +227,6 @@ wire  [ 31:0]  csr_writeback_exception_pc_w;
 wire           fetch1_instr_mul_w;
 wire           mmu_store_fault_w;
 
-
 frontend
 #(
      .EXTRA_DECODE_STAGE(EXTRA_DECODE_STAGE)
@@ -256,6 +255,8 @@ u_frontend
     ,.icache_page_fault_i(fetch_in_fault_w)
     ,.fetch0_accept_i(fetch0_accept_w)
     ,.fetch1_accept_i(fetch1_accept_w)
+    ,.fetch2_accept_i(1'b0)
+    ,.fetch3_accept_i(1'b0)
     ,.fetch_invalidate_i(ifence_w)
     ,.branch_request_i(branch_request_w)
     ,.branch_pc_i(branch_pc_w)
@@ -301,8 +302,33 @@ u_frontend
     ,.fetch1_instr_csr_o(fetch1_instr_csr_w)
     ,.fetch1_instr_rd_valid_o(fetch1_instr_rd_valid_w)
     ,.fetch1_instr_invalid_o(fetch1_instr_invalid_w)
+    ,.fetch2_valid_o()
+    ,.fetch2_instr_o()
+    ,.fetch2_pc_o()
+    ,.fetch2_fault_fetch_o()
+    ,.fetch2_fault_page_o()
+    ,.fetch2_instr_exec_o()
+    ,.fetch2_instr_lsu_o()
+    ,.fetch2_instr_branch_o()
+    ,.fetch2_instr_mul_o()
+    ,.fetch2_instr_div_o()
+    ,.fetch2_instr_csr_o()
+    ,.fetch2_instr_rd_valid_o()
+    ,.fetch2_instr_invalid_o()
+    ,.fetch3_valid_o()
+    ,.fetch3_instr_o()
+    ,.fetch3_pc_o()
+    ,.fetch3_fault_fetch_o()
+    ,.fetch3_fault_page_o()
+    ,.fetch3_instr_exec_o()
+    ,.fetch3_instr_lsu_o()
+    ,.fetch3_instr_branch_o()
+    ,.fetch3_instr_mul_o()
+    ,.fetch3_instr_div_o()
+    ,.fetch3_instr_csr_o()
+    ,.fetch3_instr_rd_valid_o()
+    ,.fetch3_instr_invalid_o()
 );
-
 
 mmu
 #(
@@ -372,7 +398,6 @@ u_mmu
     ,.lsu_in_store_fault_o(mmu_store_fault_w)
 );
 
-
 lsu
 #(
      .MEM_CACHE_ADDR_MAX(MEM_CACHE_ADDR_MAX)
@@ -415,7 +440,6 @@ u_lsu
     ,.writeback_exception_o(writeback_mem_exception_w)
     ,.stall_o(lsu_stall_w)
 );
-
 
 csr
 #(
@@ -464,7 +488,6 @@ u_csr
     ,.mmu_satp_o(mmu_satp_w)
 );
 
-
 multiplier
 u_mul
 (
@@ -486,7 +509,6 @@ u_mul
     ,.writeback_value_o(writeback_mul_value_w)
 );
 
-
 divider
 u_div
 (
@@ -507,7 +529,6 @@ u_div
     ,.writeback_valid_o(writeback_div_valid_w)
     ,.writeback_value_o(writeback_div_value_w)
 );
-
 
 issue
 #(
@@ -660,7 +681,6 @@ u_issue
     ,.interrupt_inhibit_o(interrupt_inhibit_w)
 );
 
-
 exec
 u_exec0
 (
@@ -692,7 +712,6 @@ u_exec0
     ,.branch_d_priv_o(branch_d_exec0_priv_w)
     ,.writeback_value_o(writeback_exec0_value_w)
 );
-
 
 exec
 u_exec1

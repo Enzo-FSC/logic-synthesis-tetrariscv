@@ -12,7 +12,6 @@ integer f;
 initial
 begin
     $display("Starting bench");
-
     if (`TRACE)
     begin
         $dumpfile("waveform.vcd");
@@ -28,7 +27,6 @@ begin
     // Load TCM memory
     for (i=0;i<131072;i=i+1)
         mem[i] = 0;
-
     f = $fopen("./build/tcm.bin", "r");
     i = $fread(mem, f);
     for (i=0;i<131072;i=i+1)
@@ -59,7 +57,7 @@ wire          mem_d_flush_w;
 wire          mem_i_accept_w;
 wire          mem_i_valid_w;
 wire          mem_i_error_w;
-wire [ 63:0]  mem_i_inst_w;
+wire [127:0]  mem_i_inst_w;
 wire [ 31:0]  mem_d_data_rd_w;
 wire          mem_d_accept_w;
 wire          mem_d_ack_w;
@@ -150,6 +148,20 @@ trace_inst_1
 (
      .valid_i(mem_i_valid_w)
     ,.opcode_i(mem_i_inst_w[63:32])
+);
+
+biriscv_trace_sim_gls
+trace_inst_2
+(
+     .valid_i(mem_i_valid_w)
+    ,.opcode_i(mem_i_inst_w[95:64])
+);
+
+biriscv_trace_sim_gls
+trace_inst_3
+(
+     .valid_i(mem_i_valid_w)
+    ,.opcode_i(mem_i_inst_w[127:96])
 );
 
 `endif
