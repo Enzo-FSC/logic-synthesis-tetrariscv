@@ -29,7 +29,7 @@ module mmu
     ,input           fetch_out_accept_i
     ,input           fetch_out_valid_i
     ,input           fetch_out_error_i
-    ,input  [ 63:0]  fetch_out_inst_i
+    ,input  [ 127:0] fetch_out_inst_i
     ,input  [ 31:0]  lsu_in_addr_i
     ,input  [ 31:0]  lsu_in_data_wr_i
     ,input           lsu_in_rd_i
@@ -49,7 +49,7 @@ module mmu
     ,output          fetch_in_accept_o
     ,output          fetch_in_valid_o
     ,output          fetch_in_error_o
-    ,output [ 63:0]  fetch_in_inst_o
+    ,output [ 127:0] fetch_in_inst_o
     ,output          fetch_out_rd_o
     ,output          fetch_out_flush_o
     ,output          fetch_out_invalidate_o

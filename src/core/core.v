@@ -39,7 +39,7 @@ module core
     ,input           mem_i_accept_i
     ,input           mem_i_valid_i
     ,input           mem_i_error_i
-    ,input  [ 63:0]  mem_i_inst_i
+    ,input  [ 127:0] mem_i_inst_i
     ,input           intr_i
     ,input  [ 31:0]  reset_vector_i
     ,input  [ 31:0]  cpu_id_i
@@ -74,7 +74,7 @@ wire  [ 31:0]  writeback_mem_value_w;
 wire  [ 31:0]  writeback_div_value_w;
 wire           csr_opcode_valid_w;
 wire           branch_csr_request_w;
-wire  [ 63:0]  mmu_ifetch_inst_w;
+wire  [ 127:0]  mmu_ifetch_inst_w;
 wire           mmu_lsu_error_w;
 wire  [ 31:0]  fetch0_pc_w;
 wire           branch_exec0_is_call_w;
