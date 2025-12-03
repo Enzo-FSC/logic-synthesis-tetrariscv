@@ -1,7 +1,7 @@
 <div align="center"> <h1> Computer Organization and Architecture III  </h1>
 </div>
 
-This project is part of the Computer Organization and Architecture III (2025.2) course. The objective of the project was to modify the http://github.com/ultraembedded/biriscv to implement a 32-bit superscalar four-issue in-order RISC-V core, run logic synthesis using GPDK45, and perform a gate-level simulation.
+This project is part of the Computer Organization and Architecture III (2025.2) course. The objective of the project was to modify the http://github.com/ultraembedded/biriscv to implement a 32-bit superscalar four-issue fetch in-order RISC-V core, run logic synthesis using GPDK45, and perform a gate-level simulation.
 
 
 1. [biRISC-V](#biriscv)
@@ -20,13 +20,14 @@ biRISC-V is a 32-bit dual issue RISC-V CPU made by [Ultraembedded](http://github
 
 ### Features
 * 32-bit RISC-V ISA CPU core.
-* Superscalar (four-issue) in-order 6 or 7 stage pipeline.
+* Superscalar (four-issue fetch) in-order 7 stage pipeline.
 * Support RISC-V’s integer (I), multiplication and division (M), and CSR instructions (Z) extensions (RV32IMZicsr).
 * Branch prediction (bimodel/gshare) with configurable depth branch target buffer (BTB) and return address stack (RAS).
 * 128-bit instruction fetch, 32-bit data access.
-* 4 x integer ALU (arithmetic, shifters and branch units).
+* 2 x integer ALU (arithmetic, shifters and branch units).
 * 1 x load store unit, 1 x out-of-pipeline divider.
-* Issue and complete up to 4 independent instructions per cycle.
+* Fetch and decode up to 4 independent instructions per cycle.
+* Issue and complete up to 2 independent instructions per cycle.
 * Supports user, supervisor and machine mode privilege levels.
 * Basic MMU support - capable of booting Linux with atomics (RV-A) SW emulation.
 * Implements base ISA spec [v2.1](docs/riscv_isa_spec.pdf) and privileged ISA spec [v1.11](docs/riscv_privileged_spec.pdf).
@@ -49,26 +50,26 @@ src
 │   
 │
 └───core
-    │ biriscv_defs.v
-    │ biriscv_alu.v
-    │ biriscv_csr_regfile.v
-    │ biriscv_csr.v
-    │ biriscv_decoder.v
-    │ biriscv_decode.v
-    │ biriscv_divider.v
-    │ biriscv_exec.v
-    │ biriscv_fetch.v
-    │ biriscv_frontend.v
-    │ biriscv_issue.v
-    │ biriscv_lsu.v
-    │ biriscv_mmu.v
-    │ biriscv_multiplier.v
-    │ biriscv_npc.v
-    │ biriscv_pipe_ctrl.v
-    │ biriscv_regfile.v
-    │ biriscv_trace_sim.v
-    │ biriscv_xilinx_2r1w.v
-    │ riscv_core.v
+    │ defs.v
+    │ alu.v
+    │ csr_regfile.v
+    │ csr.v
+    │ decoder.v
+    │ decode.v
+    │ divider.v
+    │ exec.v
+    │ fetch.v
+    │ frontend.v
+    │ issue.v
+    │ lsu.v
+    │ mmu.v
+    │ multiplier.v
+    │ npc.v
+    │ pipe_ctrl.v
+    │ regfile.v
+    │ trace_sim.v
+    │ xilinx_2r1w.v
+    │ core.v
 ```
 
 The non-synthesizable testbench modules are:
