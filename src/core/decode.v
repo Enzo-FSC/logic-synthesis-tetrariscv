@@ -4,7 +4,8 @@ module decode
 //-----------------------------------------------------------------
 #(
      parameter SUPPORT_MULDIV   = 1,
-     parameter EXTRA_DECODE_STAGE = 0
+     // Alterado para 1 para garantir que a lógica de buffer/FIFO seja sintetizada por padrão
+     parameter EXTRA_DECODE_STAGE = 1 
 )
 //-----------------------------------------------------------------
 // Ports
@@ -21,13 +22,11 @@ module decode
      input  [ 31:0]  fetch_in_pc_i,
      input           fetch_out0_accept_i,
      input           fetch_out1_accept_i,
-     input           fetch_out2_accept_i,
-     input           fetch_out3_accept_i,
      input           branch_request_i,
      input  [ 31:0]  branch_pc_i,
      input  [  1:0]  branch_priv_i,
 
-    // Outputs
+    // Outputs (Apenas 2 vias para o Backend)
      output          fetch_in_accept_o,
      output          fetch_out0_valid_o,
      output [ 31:0]  fetch_out0_instr_o,
@@ -54,39 +53,9 @@ module decode
      output          fetch_out1_instr_div_o,
      output          fetch_out1_instr_csr_o,
      output          fetch_out1_instr_rd_valid_o,
-     output          fetch_out1_instr_invalid_o,
-    // Outputs for 3rd instruction in fetch bundle (if present)
-     output          fetch_out2_valid_o,
-     output [ 31:0]  fetch_out2_instr_o,
-     output [ 31:0]  fetch_out2_pc_o,
-     output          fetch_out2_fault_fetch_o,
-     output          fetch_out2_fault_page_o,
-     output          fetch_out2_instr_exec_o,
-     output          fetch_out2_instr_lsu_o,
-     output          fetch_out2_instr_branch_o,
-     output          fetch_out2_instr_mul_o,
-     output          fetch_out2_instr_div_o,
-     output          fetch_out2_instr_csr_o,
-     output          fetch_out2_instr_rd_valid_o,
-     output          fetch_out2_instr_invalid_o,
-    // Outputs for 4th instruction in fetch bundle (if present)
-     output          fetch_out3_valid_o,
-     output [ 31:0]  fetch_out3_instr_o,
-     output [ 31:0]  fetch_out3_pc_o,
-     output          fetch_out3_fault_fetch_o,
-     output          fetch_out3_fault_page_o,
-     output          fetch_out3_instr_exec_o,
-     output          fetch_out3_instr_lsu_o,
-     output          fetch_out3_instr_branch_o,
-     output          fetch_out3_instr_mul_o,
-     output          fetch_out3_instr_div_o,
-     output          fetch_out3_instr_csr_o,
-     output          fetch_out3_instr_rd_valid_o,
-     output          fetch_out3_instr_invalid_o
+     output          fetch_out1_instr_invalid_o
 );
-
     wire        enable_muldiv_w     = SUPPORT_MULDIV;
-
     //-----------------------------------------------------------------
     // 2 cycle frontend latency
     //-----------------------------------------------------------------
@@ -101,7 +70,6 @@ module decode
             wire        fetch_in_valid_w;
 
             reg [166:0] fetch_buffer_q;
-
             always @ (posedge clk_i or posedge rst_i)
                 if (rst_i)
                     fetch_buffer_q <= 167'b0;
@@ -109,7 +77,6 @@ module decode
                     fetch_buffer_q <= 167'b0;
                 else if (!fetch_in_valid_w || fetch_in_accept_o)
                     fetch_buffer_q <= {fetch_in_fault_page_i, fetch_in_fault_fetch_i, fetch_in_pred_branch_i, fetch_in_instr_i, fetch_in_pc_i, fetch_in_valid_i};
-
             assign {fetch_in_fault_page_w,
                     fetch_in_fault_fetch_w,
                     fetch_in_pred_branch_w,
@@ -120,22 +87,15 @@ module decode
             assign fetch_in_instr_w = (fetch_in_fault_page_w | fetch_in_fault_fetch_w) ? 128'b0 : fetch_in_instr_raw_w;
 
             wire [7:0] info0_in_w;
-            wire [9:0] info0_out_w;
             wire [7:0] info1_in_w;
-            wire [9:0] info1_out_w;
             wire [7:0] info2_in_w;
-            wire [9:0] info2_out_w;
             wire [7:0] info3_in_w;
-            wire [9:0] info3_out_w;
 
-            decoder
-            u_dec0
-            (
+            decoder u_dec0 (
                  .valid_i(fetch_in_valid_w),
                  .fetch_fault_i(fetch_in_fault_fetch_w | fetch_in_fault_page_w),
                  .enable_muldiv_i(enable_muldiv_w),
                  .opcode_i(fetch_in_instr_w[31:0]),
-
                  .invalid_o(info0_in_w[7]),
                  .exec_o(info0_in_w[6]),
                  .lsu_o(info0_in_w[5]),
@@ -145,15 +105,11 @@ module decode
                  .csr_o(info0_in_w[1]),
                  .rd_valid_o(info0_in_w[0])
             );
-
-            decoder
-            u_dec1
-            (
+            decoder u_dec1 (
                  .valid_i(fetch_in_valid_w),
                  .fetch_fault_i(fetch_in_fault_fetch_w | fetch_in_fault_page_w),
                  .enable_muldiv_i(enable_muldiv_w),
                  .opcode_i(fetch_in_instr_w[63:32]),
-
                  .invalid_o(info1_in_w[7]),
                  .exec_o(info1_in_w[6]),
                  .lsu_o(info1_in_w[5]),
@@ -163,15 +119,11 @@ module decode
                  .csr_o(info1_in_w[1]),
                  .rd_valid_o(info1_in_w[0])
             );
-
-            decoder
-            u_dec2
-            (
+            decoder u_dec2 (
                  .valid_i(fetch_in_valid_w),
                  .fetch_fault_i(fetch_in_fault_fetch_w | fetch_in_fault_page_w),
                  .enable_muldiv_i(enable_muldiv_w),
                  .opcode_i(fetch_in_instr_w[95:64]),
-
                  .invalid_o(info2_in_w[7]),
                  .exec_o(info2_in_w[6]),
                  .lsu_o(info2_in_w[5]),
@@ -181,15 +133,11 @@ module decode
                  .csr_o(info2_in_w[1]),
                  .rd_valid_o(info2_in_w[0])
             );
-
-            decoder
-            u_dec3
-            (
+            decoder u_dec3 (
                  .valid_i(fetch_in_valid_w),
                  .fetch_fault_i(fetch_in_fault_fetch_w | fetch_in_fault_page_w),
                  .enable_muldiv_i(enable_muldiv_w),
                  .opcode_i(fetch_in_instr_w[127:96]),
-
                  .invalid_o(info3_in_w[7]),
                  .exec_o(info3_in_w[6]),
                  .lsu_o(info3_in_w[5]),
@@ -200,13 +148,26 @@ module decode
                  .rd_valid_o(info3_in_w[0])
             );
 
+            // Wires para capturar a saída "larga" do FIFO
+            wire        fifo_valid0, fifo_valid1, fifo_valid2, fifo_valid3;
+            wire [31:0] fifo_pc0, fifo_pc1, fifo_pc2, fifo_pc3;
+            wire [31:0] fifo_instr0, fifo_instr1, fifo_instr2, fifo_instr3;
+            wire [9:0]  fifo_info0, fifo_info1, fifo_info2, fifo_info3;
+            // Estado: 0 = Metade Baixa, 1 = Metade Alta
+            reg issue_upper_half_q;
+            // Wires multiplexados para a saída do módulo
+            wire [31:0] muxed_instr0, muxed_instr1;
+            wire [31:0] muxed_pc0, muxed_pc1;
+            wire [9:0]  muxed_info0, muxed_info1;
+            wire        muxed_valid0, muxed_valid1;
+            wire        fifo_pop_w;
+
             fetch_fifo
             #( .OPC_INFO_W(10) )
             u_fifo
             (
                  .clk_i(clk_i),
                  .rst_i(rst_i),
-
                  .flush_i(branch_request_i),
 
                  // Input side
@@ -220,170 +181,149 @@ module decode
                  .info3_in_i({info3_in_w, fetch_in_fault_page_w, fetch_in_fault_fetch_w}),
                  .accept_o(fetch_in_accept_o),
 
-                 // Outputs
-                 .valid0_o(fetch_out0_valid_o),
-                 .pc0_out_o(fetch_out0_pc_o),
-                 .data0_out_o(fetch_out0_instr_o),
-                 .info0_out_o({fetch_out0_instr_invalid_o, fetch_out0_instr_exec_o,
-                                fetch_out0_instr_lsu_o,     fetch_out0_instr_branch_o,
-                                fetch_out0_instr_mul_o,     fetch_out0_instr_div_o,
-                                fetch_out0_instr_csr_o,     fetch_out0_instr_rd_valid_o,
-                                fetch_out0_fault_page_o,    fetch_out0_fault_fetch_o}),
-                 .pop0_i(fetch_out0_accept_i),
+                 .valid0_o(fifo_valid0),
+                 .pc0_out_o(fifo_pc0),
+                 .data0_out_o(fifo_instr0),
+                 .info0_out_o(fifo_info0),
+                 .pop0_i(fifo_pop_w),
 
-                 .valid1_o(fetch_out1_valid_o),
-                 .pc1_out_o(fetch_out1_pc_o),
-                 .data1_out_o(fetch_out1_instr_o),
-                 .info1_out_o({fetch_out1_instr_invalid_o, fetch_out1_instr_exec_o,
-                                fetch_out1_instr_lsu_o,     fetch_out1_instr_branch_o,
-                                fetch_out1_instr_mul_o,     fetch_out1_instr_div_o,
-                                fetch_out1_instr_csr_o,     fetch_out1_instr_rd_valid_o,
-                                fetch_out1_fault_page_o,    fetch_out1_fault_fetch_o}),
-                 .pop1_i(fetch_out1_accept_i),
+                 .valid1_o(fifo_valid1),
+                 .pc1_out_o(fifo_pc1),
+                 .data1_out_o(fifo_instr1),
+                 .info1_out_o(fifo_info1),
+                 .pop1_i(fifo_pop_w),
 
-                 .valid2_o(fetch_out2_valid_o),
-                 .pc2_out_o(fetch_out2_pc_o),
-                 .data2_out_o(fetch_out2_instr_o),
-                 .info2_out_o({fetch_out2_instr_invalid_o, fetch_out2_instr_exec_o,
-                                fetch_out2_instr_lsu_o,     fetch_out2_instr_branch_o,
-                                fetch_out2_instr_mul_o,     fetch_out2_instr_div_o,
-                                fetch_out2_instr_csr_o,     fetch_out2_instr_rd_valid_o,
-                                fetch_out2_fault_page_o,    fetch_out2_fault_fetch_o}),
-                 .pop2_i(fetch_out2_accept_i),
+                 .valid2_o(fifo_valid2),
+                 .pc2_out_o(fifo_pc2),
+                 .data2_out_o(fifo_instr2),
+                 .info2_out_o(fifo_info2),
+                 .pop2_i(fifo_pop_w),
 
-                 .valid3_o(fetch_out3_valid_o),
-                 .pc3_out_o(fetch_out3_pc_o),
-                 .data3_out_o(fetch_out3_instr_o),
-                 .info3_out_o({fetch_out3_instr_invalid_o, fetch_out3_instr_exec_o,
-                                fetch_out3_instr_lsu_o,     fetch_out3_instr_branch_o,
-                                fetch_out3_instr_mul_o,     fetch_out3_instr_div_o,
-                                fetch_out3_instr_csr_o,     fetch_out3_instr_rd_valid_o,
-                                fetch_out3_fault_page_o,    fetch_out3_fault_fetch_o}),
-                 .pop3_i(fetch_out3_accept_i)
+                 .valid3_o(fifo_valid3),
+                 .pc3_out_o(fifo_pc3),
+                 .data3_out_o(fifo_instr3),
+                 .info3_out_o(fifo_info3),
+                 .pop3_i(fifo_pop_w)
             );
+
+            //-------------------------------------------------------------
+            // Seleção de Metade e Compressão
+            //-------------------------------------------------------------
+            // Passo 1: Selecionar a metade bruta do FIFO
+            wire raw_valid0, raw_valid1;
+            wire [31:0] raw_instr0, raw_instr1;
+            wire [31:0] raw_pc0, raw_pc1;
+            wire [9:0] raw_info0, raw_info1;
+
+            assign raw_valid0 = issue_upper_half_q ? fifo_valid2 : fifo_valid0;
+            assign raw_instr0 = issue_upper_half_q ? fifo_instr2 : fifo_instr0;
+            assign raw_pc0    = issue_upper_half_q ? fifo_pc2    : fifo_pc0;
+            assign raw_info0  = issue_upper_half_q ? fifo_info2  : fifo_info0;
+
+            assign raw_valid1 = issue_upper_half_q ? fifo_valid3 : fifo_valid1;
+            assign raw_instr1 = issue_upper_half_q ? fifo_instr3 : fifo_instr1;
+            assign raw_pc1    = issue_upper_half_q ? fifo_pc3    : fifo_pc1;
+            assign raw_info1  = issue_upper_half_q ? fifo_info3  : fifo_info1;
+
+            // Passo 2: Lógica de Compressão (Steering)
+            // Se o Slot 0 é inválido (bolha) e o Slot 1 é válido (instrução desalinhada),
+            // movemos o Slot 1 para a posição 0.
+            wire compress_bubble_w = (!raw_valid0 && raw_valid1);
+
+            assign muxed_valid0 = compress_bubble_w ? raw_valid1 : raw_valid0;
+            assign muxed_instr0 = compress_bubble_w ? raw_instr1 : raw_instr0;
+            assign muxed_pc0    = compress_bubble_w ? raw_pc1    : raw_pc0;
+            assign muxed_info0  = compress_bubble_w ? raw_info1  : raw_info0;
+
+            assign muxed_valid1 = compress_bubble_w ? 1'b0       : raw_valid1;
+            assign muxed_instr1 = compress_bubble_w ? 32'b0      : raw_instr1;
+            assign muxed_pc1    = compress_bubble_w ? 32'b0      : raw_pc1;
+            assign muxed_info1  = compress_bubble_w ? 10'b0      : raw_info1;
+
+            // Passo 3: Lógica de Controle
+            // Verificar se o backend aceita TODAS as instruções válidas apresentadas
+            wire all_accepted_w;
+            assign all_accepted_w = (!muxed_valid0 || fetch_out0_accept_i) && 
+                                    (!muxed_valid1 || fetch_out1_accept_i);
+
+            always @(posedge clk_i or posedge rst_i) begin
+                if (rst_i) begin
+                    issue_upper_half_q <= 1'b0;
+                end else if (branch_request_i) begin
+                    issue_upper_half_q <= 1'b0;
+                // Flush reinicia
+                end else if (all_accepted_w) begin
+                    // Se o backend aceitou o pacote atual
+                    if (!issue_upper_half_q) begin
+                        // Se estamos na metade baixa, e existe algo valido na alta, avança
+                        if (fifo_valid2 || fifo_valid3)
+                            issue_upper_half_q <= 1'b1;
+                        else
+                            issue_upper_half_q <= 1'b0;
+                        // Mantém 0, mas FIFO vai dar pop (próxima linha)
+                    end else begin
+                        // Se estamos na metade alta, volta para baixa (FIFO vai dar pop)
+                        issue_upper_half_q <= 1'b0;
+                    end
+                end
+            end
+
+            // Lógica de Pop do FIFO (Pop na linha inteira quando terminamos com ela)
+            // Terminamos se: Aceito E (Estávamos na alta OU (Estávamos na baixa mas a alta é vazia))
+            assign fifo_pop_w = all_accepted_w && (issue_upper_half_q || (!fifo_valid2 && !fifo_valid3));
+
+            // Atribuição às saídas do módulo
+            assign fetch_out0_valid_o = muxed_valid0;
+            assign fetch_out0_instr_o = muxed_instr0;
+            assign fetch_out0_pc_o    = muxed_pc0;
+            assign {fetch_out0_instr_invalid_o, fetch_out0_instr_exec_o,
+                    fetch_out0_instr_lsu_o,     fetch_out0_instr_branch_o,
+                    fetch_out0_instr_mul_o,     fetch_out0_instr_div_o,
+                    fetch_out0_instr_csr_o,     fetch_out0_instr_rd_valid_o,
+                    fetch_out0_fault_page_o,    fetch_out0_fault_fetch_o} = muxed_info0;
+
+            assign fetch_out1_valid_o = muxed_valid1;
+            assign fetch_out1_instr_o = muxed_instr1;
+            assign fetch_out1_pc_o    = muxed_pc1;
+            assign {fetch_out1_instr_invalid_o, fetch_out1_instr_exec_o,
+                    fetch_out1_instr_lsu_o,     fetch_out1_instr_branch_o,
+                    fetch_out1_instr_mul_o,     fetch_out1_instr_div_o,
+                    fetch_out1_instr_csr_o,     fetch_out1_instr_rd_valid_o,
+                    fetch_out1_fault_page_o,    fetch_out1_fault_fetch_o} = muxed_info1;
+
         end
-    //-----------------------------------------------------------------
-    // 1 cycle frontend latency
-    //-----------------------------------------------------------------
-    else begin
-        fetch_fifo
-        #( .OPC_INFO_W(2) )
-        u_fifo
-        (
-             .clk_i(clk_i),
-             .rst_i(rst_i),
-
-             .flush_i(branch_request_i),
-
-             // Input side
-             .push_i(fetch_in_valid_i),
-             .pc_in_i(fetch_in_pc_i),
-             .pred_in_i(fetch_in_pred_branch_i),
-             .data_in_i((fetch_in_fault_page_i | fetch_in_fault_fetch_i) ? 128'b0 : fetch_in_instr_i),
-             .info0_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i}),
-             .info1_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i}),
-             .info2_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i}),
-             .info3_in_i({fetch_in_fault_page_i, fetch_in_fault_fetch_i}),
-             .accept_o(fetch_in_accept_o),
-
-             // Outputs
-             .valid0_o(fetch_out0_valid_o),
-             .pc0_out_o(fetch_out0_pc_o),
-             .data0_out_o(fetch_out0_instr_o),
-             .info0_out_o({fetch_out0_fault_page_o, fetch_out0_fault_fetch_o}),
-             .pop0_i(fetch_out0_accept_i),
-
-             .valid1_o(fetch_out1_valid_o),
-             .pc1_out_o(fetch_out1_pc_o),
-             .data1_out_o(fetch_out1_instr_o),
-             .info1_out_o({fetch_out1_fault_page_o, fetch_out1_fault_fetch_o}),
-             .pop1_i(fetch_out1_accept_i),
-
-             .valid2_o(fetch_out2_valid_o),
-             .pc2_out_o(fetch_out2_pc_o),
-             .data2_out_o(fetch_out2_instr_o),
-             .info2_out_o({fetch_out2_fault_page_o, fetch_out2_fault_fetch_o}),
-             .pop2_i(fetch_out2_accept_i),
-
-             .valid3_o(fetch_out3_valid_o),
-             .pc3_out_o(fetch_out3_pc_o),
-             .data3_out_o(fetch_out3_instr_o),
-             .info3_out_o({fetch_out3_fault_page_o, fetch_out3_fault_fetch_o}),
-             .pop3_i(fetch_out3_accept_i)
-        );
-
-        decoder
-        u_dec0
-        (
-             .valid_i(fetch_out0_valid_o),
-             .fetch_fault_i(fetch_out0_fault_fetch_o | fetch_out0_fault_page_o),
-             .enable_muldiv_i(enable_muldiv_w),
-             .opcode_i(fetch_out0_instr_o),
-
-             .invalid_o(fetch_out0_instr_invalid_o),
-             .exec_o(fetch_out0_instr_exec_o),
-             .lsu_o(fetch_out0_instr_lsu_o),
-             .branch_o(fetch_out0_instr_branch_o),
-             .mul_o(fetch_out0_instr_mul_o),
-             .div_o(fetch_out0_instr_div_o),
-             .csr_o(fetch_out0_instr_csr_o),
-             .rd_valid_o(fetch_out0_instr_rd_valid_o)
-        );
-
-        decoder
-        u_dec1
-        (
-             .valid_i(fetch_out1_valid_o),
-             .fetch_fault_i(fetch_out1_fault_fetch_o | fetch_out1_fault_page_o),
-             .enable_muldiv_i(enable_muldiv_w),
-             .opcode_i(fetch_out1_instr_o),
-
-             .invalid_o(fetch_out1_instr_invalid_o),
-             .exec_o(fetch_out1_instr_exec_o),
-             .lsu_o(fetch_out1_instr_lsu_o),
-             .branch_o(fetch_out1_instr_branch_o),
-             .mul_o(fetch_out1_instr_mul_o),
-             .div_o(fetch_out1_instr_div_o),
-             .csr_o(fetch_out1_instr_csr_o),
-             .rd_valid_o(fetch_out1_instr_rd_valid_o)
-        );
-
-        decoder
-        u_dec2
-        (
-             .valid_i(fetch_out2_valid_o),
-             .fetch_fault_i(fetch_out2_fault_fetch_o | fetch_out2_fault_page_o),
-             .enable_muldiv_i(enable_muldiv_w),
-             .opcode_i(fetch_out2_instr_o),
-
-             .invalid_o(fetch_out2_instr_invalid_o),
-             .exec_o(fetch_out2_instr_exec_o),
-             .lsu_o(fetch_out2_instr_lsu_o),
-             .branch_o(fetch_out2_instr_branch_o),
-             .mul_o(fetch_out2_instr_mul_o),
-             .div_o(fetch_out2_instr_div_o),
-             .csr_o(fetch_out2_instr_csr_o),
-             .rd_valid_o(fetch_out2_instr_rd_valid_o)
-        );
-
-        decoder
-        u_dec3
-        (
-             .valid_i(fetch_out3_valid_o),
-             .fetch_fault_i(fetch_out3_fault_fetch_o | fetch_out3_fault_page_o),
-             .enable_muldiv_i(enable_muldiv_w),
-             .opcode_i(fetch_out3_instr_o),
-
-             .invalid_o(fetch_out3_instr_invalid_o),
-             .exec_o(fetch_out3_instr_exec_o),
-             .lsu_o(fetch_out3_instr_lsu_o),
-             .branch_o(fetch_out3_instr_branch_o),
-             .mul_o(fetch_out3_instr_mul_o),
-             .div_o(fetch_out3_instr_div_o),
-             .csr_o(fetch_out3_instr_csr_o),
-             .rd_valid_o(fetch_out3_instr_rd_valid_o)
-        );
-    end
+        //-----------------------------------------------------------------
+        // 1 cycle frontend latency (Fallback simples - não utilizado no modo 4-issue)
+        //-----------------------------------------------------------------
+        else begin
+             assign fetch_out0_valid_o = 1'b0;
+             assign fetch_out1_valid_o = 1'b0;
+             assign fetch_in_accept_o  = 1'b0;
+             assign fetch_out0_instr_o = 32'b0;
+             assign fetch_out0_pc_o    = 32'b0;
+             assign fetch_out0_fault_fetch_o = 1'b0;
+             assign fetch_out0_fault_page_o = 1'b0;
+             assign fetch_out0_instr_exec_o = 1'b0;
+             assign fetch_out0_instr_lsu_o = 1'b0;
+             assign fetch_out0_instr_branch_o = 1'b0;
+             assign fetch_out0_instr_mul_o = 1'b0;
+             assign fetch_out0_instr_div_o = 1'b0;
+             assign fetch_out0_instr_csr_o = 1'b0;
+             assign fetch_out0_instr_rd_valid_o = 1'b0;
+             assign fetch_out0_instr_invalid_o = 1'b0;
+             assign fetch_out1_instr_o = 32'b0;
+             assign fetch_out1_pc_o    = 32'b0;
+             assign fetch_out1_fault_fetch_o = 1'b0;
+             assign fetch_out1_fault_page_o = 1'b0;
+             assign fetch_out1_instr_exec_o = 1'b0;
+             assign fetch_out1_instr_lsu_o = 1'b0;
+             assign fetch_out1_instr_branch_o = 1'b0;
+             assign fetch_out1_instr_mul_o = 1'b0;
+             assign fetch_out1_instr_div_o = 1'b0;
+             assign fetch_out1_instr_csr_o = 1'b0;
+             assign fetch_out1_instr_rd_valid_o = 1'b0;
+             assign fetch_out1_instr_invalid_o = 1'b0;
+        end
     endgenerate
 
 endmodule
@@ -404,7 +344,6 @@ module fetch_fifo
 (
      input                  clk_i,
      input                  rst_i,
-
      input                  flush_i,
 
     // Input side
@@ -443,15 +382,7 @@ module fetch_fifo
      output[OPC_INFO_W-1:0] info3_out_o,
      input                  pop3_i
 );
-
-    //-----------------------------------------------------------------
-    // Local Params
-    //-----------------------------------------------------------------
     localparam COUNT_W = ADDR_W + 1;
-
-    //-----------------------------------------------------------------
-    // Registers
-    //-----------------------------------------------------------------
     reg [31:0]           pc_q[DEPTH-1:0];
     reg                  valid0_q[DEPTH-1:0];
     reg                  valid1_q[DEPTH-1:0];
@@ -465,10 +396,6 @@ module fetch_fifo
     reg [ADDR_W-1:0]     rd_ptr_q;
     reg [ADDR_W-1:0]     wr_ptr_q;
     reg [COUNT_W-1:0]    count_q;
-
-    //-----------------------------------------------------------------
-    // Sequential
-    //-----------------------------------------------------------------
     wire push_w         = (push_i & accept_o);
     wire pop0_w         = (pop0_i & valid0_o);
     wire pop1_w         = (pop1_i & valid1_o);
@@ -480,12 +407,6 @@ module fetch_fifo
         (pop2_w | ~valid2_o) &
         (pop3_w | ~valid3_o) &
         (count_q != 0);
-// wire pop_complete_w = ((pop0_w && ~valid1_o) || (pop0_w && ~valid2_o) || (pop0_w && ~valid3_o) || 
-//                        (pop1_w && ~valid0_o) || (pop1_w && ~valid2_o) || (pop1_w && ~valid3_o) ||
-//                        (pop2_w && ~valid0_o) || (pop2_w && ~valid1_o) || (pop2_w && ~valid3_o) ||
-//                        (pop3_w && ~valid0_o) || (pop3_w && ~valid1_o) || (pop3_w && ~valid2_o) ||
-//                        (pop0_w && pop1_w && pop2_w && pop3_w));
-
     integer i;
 
     always @ (posedge clk_i or posedge rst_i)
@@ -520,7 +441,6 @@ module fetch_fifo
                 valid3_q[i]      <= 1'b0;
             end
         end else begin
-            // Push
             if (push_w) begin
                 ram_q[wr_ptr_q]     <= data_in_i;
                 pc_q[wr_ptr_q]      <= pc_in_i;
@@ -529,38 +449,24 @@ module fetch_fifo
                 info2_q[wr_ptr_q]   <= info2_in_i;
                 info3_q[wr_ptr_q]   <= info3_in_i;
                 valid0_q[wr_ptr_q]  <= pred_in_i[0];
-                //sempre valido
                 valid1_q[wr_ptr_q]  <= pred_in_i[1];
-                // valido apenas se 2 ou mais instruções
                 valid2_q[wr_ptr_q]  <= pred_in_i[2];
-                // valido apenas se 3 ou 4 instruções
                 valid3_q[wr_ptr_q]  <= pred_in_i[3];
-                // valido apenas se 4 instruções
                 wr_ptr_q            <= wr_ptr_q + 1;
             end
 
-            if (pop0_w)
-                valid0_q[rd_ptr_q] <= 1'b0;
-            if (pop1_w)
-                valid1_q[rd_ptr_q] <= 1'b0;
-            if (pop2_w)
-                valid2_q[rd_ptr_q] <= 1'b0;
-            if (pop3_w)
-                valid3_q[rd_ptr_q] <= 1'b0;
-
-            // Both instructions completed
+            if (pop0_w) valid0_q[rd_ptr_q] <= 1'b0;
+            if (pop1_w) valid1_q[rd_ptr_q] <= 1'b0;
+            if (pop2_w) valid2_q[rd_ptr_q] <= 1'b0;
+            if (pop3_w) valid3_q[rd_ptr_q] <= 1'b0;
             if (pop_complete_w)
                 rd_ptr_q  <= rd_ptr_q + 1;
-
             if (push_w & ~pop_complete_w)
                 count_q <= count_q + 1;
             else if (~push_w & pop_complete_w)
                 count_q <= count_q - 1;
         end
 
-    //-------------------------------------------------------------------
-    // Combinatorial
-    //-------------------------------------------------------------------
     /* verilator lint_off WIDTH */
     assign valid0_o      = (count_q != 0) & valid0_q[rd_ptr_q];
     assign valid1_o      = (count_q != 0) & valid1_q[rd_ptr_q];

@@ -26,6 +26,7 @@ module fetch
     input [1:0]     branch_priv_i,
     input [31:0]    next_pc_f_i,
     input [3:0]     next_taken_f_i,
+    input [31:0]    reset_vector_i,
 
     // Outputs
     output          fetch_valid_o,
@@ -42,8 +43,7 @@ module fetch
     output [31:0]   pc_f_o,
     output          pc_accept_o
 );
-
-    //-------------------------------------------------------------
+//-------------------------------------------------------------
     // Registers / Wires
     //-------------------------------------------------------------
     reg     active_q;
@@ -84,7 +84,8 @@ module fetch
                     branch_pc_q <= 32'b0;
                 end
         end else begin
-            assign branch_w         = branch_q || branch_request_i;
+            assign branch_w         = branch_q ||
+                                      branch_request_i;
             assign branch_pc_w      = (branch_q & !branch_request_i) ? branch_pc_q   : branch_pc_i;
             assign branch_priv_w    = `PRIV_MACHINE;
 
@@ -112,24 +113,20 @@ module fetch
             active_q    <= 1'b1;
         else if (!SUPPORT_MMU && branch_w)
             active_q    <= 1'b1;
-
     //-------------------------------------------------------------
     // Stall flag
     //-------------------------------------------------------------
     reg stall_q;
-
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
             stall_q <= 1'b0;
         else
             stall_q <= stall_w;
-
     //-------------------------------------------------------------
     // Request tracking
     //-------------------------------------------------------------
     reg icache_fetch_q;
     reg icache_invalidate_q;
-
     // ICACHE fetch tracking
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
@@ -138,7 +135,6 @@ module fetch
             icache_fetch_q <= 1'b1;
         else if (icache_valid_i)
             icache_fetch_q <= 1'b0;
-
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
             icache_invalidate_q <= 1'b0;
@@ -146,7 +142,6 @@ module fetch
             icache_invalidate_q <= 1'b1;
         else
             icache_invalidate_q <= 1'b0;
-
     //-------------------------------------------------------------
     // PC
     //-------------------------------------------------------------
@@ -156,7 +151,7 @@ module fetch
 
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
-            pc_f_q  <= 32'b0;
+            pc_f_q  <= reset_vector_i;
         // Branch request
         else if (SUPPORT_MMU && branch_w && ~stall_w)
             pc_f_q  <= branch_pc_w;
@@ -165,11 +160,9 @@ module fetch
         // NPC
         else if (!stall_w)
             pc_f_q  <= next_pc_f_i;
-
     wire [31:0] icache_pc_w;
     wire [1:0]  icache_priv_w;
     wire        fetch_resp_drop_w;
-
     generate
         if (SUPPORT_MMU) begin
             reg [1:0] priv_f_q;
@@ -181,7 +174,6 @@ module fetch
                 // Branch request
                 else if (branch_w && ~stall_w)
                     priv_f_q    <= branch_priv_w;
-
             always @ (posedge clk_i or posedge rst_i)
                 if (rst_i)
                     branch_d_q  <= 1'b0;
@@ -191,12 +183,12 @@ module fetch
                 // NPC
                 else if (!stall_w)
                     branch_d_q  <= 1'b0;
-
             assign icache_pc_w          = pc_f_q;
             assign icache_priv_w        = priv_f_q;
             assign fetch_resp_drop_w    = branch_w | branch_d_q;
         end else begin
-            assign icache_pc_w          = (branch_w & ~stall_q) ? branch_pc_w : pc_f_q;
+            assign icache_pc_w          = (branch_w & ~stall_q) ?
+                                          branch_pc_w : pc_f_q;
             assign icache_priv_w        = `PRIV_MACHINE;
             assign fetch_resp_drop_w    = branch_w;
         end
@@ -208,7 +200,6 @@ module fetch
             pc_d_q <= 32'b0;
         else if (icache_rd_o && icache_accept_i)
             pc_d_q <= icache_pc_w;
-
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i)
             pred_d_q <= 4'b0;
@@ -216,24 +207,21 @@ module fetch
             pred_d_q <= next_taken_f_i;
         else if (icache_valid_i)
             pred_d_q <= 4'b0;
-
     //-------------------------------------------------------------
     // Outputs
     //-------------------------------------------------------------
     assign icache_rd_o          = active_q & fetch_accept_i & !icache_busy_w;
+    // Garante alinhamento a 16 bytes (128 bits) na requisição à memória
     assign icache_pc_o          = {icache_pc_w[31:4],4'b0};
     assign icache_priv_o        = icache_priv_w;
     assign icache_flush_o       = fetch_invalidate_i | icache_invalidate_q;
     assign icache_invalidate_o  = 1'b0;
-
     assign icache_busy_w        =  icache_fetch_q && !icache_valid_i;
-
     //-------------------------------------------------------------
     // Response Buffer
     //-------------------------------------------------------------
     reg [165:0] skid_buffer_q;
     reg         skid_valid_q;
-
     always @ (posedge clk_i or posedge rst_i)
         if (rst_i) begin
             skid_buffer_q  <= 166'b0;
@@ -254,9 +242,9 @@ module fetch
     assign fetch_pred_branch_o  = skid_valid_q ? skid_buffer_q[163:160] : pred_d_q;
 
     // Faults
-    assign fetch_fault_fetch_o  = skid_valid_q ? skid_buffer_q[164] : icache_error_i;
+    assign fetch_fault_fetch_o  = skid_valid_q ?
+                                  skid_buffer_q[164] : icache_error_i;
     assign fetch_fault_page_o   = skid_valid_q ? skid_buffer_q[165] : icache_page_fault_i;
-
     assign pc_f_o       = icache_pc_w;
     assign pc_accept_o  = ~stall_w;
 

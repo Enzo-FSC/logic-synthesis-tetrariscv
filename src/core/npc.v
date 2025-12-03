@@ -39,7 +39,6 @@ module npc
     output [ 31:0]  next_pc_f_o,
     output [  3:0]  next_taken_f_o
 );
-
     localparam RAS_INVALID = 32'h00000001;
 
     //-----------------------------------------------------------------
@@ -87,7 +86,11 @@ module npc
             wire [31:0] ras_pc_pred_w   = ras_stack_q[ras_index_q];
             wire        ras_call_pred_w = RAS_ENABLE & (btb_valid_w & btb_is_call_w) & ~ras_pc_pred_w[0];
             wire        ras_ret_pred_w  = RAS_ENABLE & (btb_valid_w & btb_is_ret_w) & ~ras_pc_pred_w[0];
-            wire [31:0] btb_hit_pc_w = pc_f_i | {btb_slot_w, 2'b00};
+            
+            // Lógica de Alinhamento: PC base do bloco de 128 bits
+            wire [31:0] aligned_pc_w = {pc_f_i[31:4], 4'b0};
+            // Se houver hit, o PC do hit é o PC alinhado + slot
+            wire [31:0] btb_hit_pc_w = aligned_pc_w | {btb_slot_w, 2'b00};
 
             always @ * begin
                 ras_index_r = ras_index_q;
@@ -141,7 +144,6 @@ module npc
             // Global history register (speculative)
             //-----------------------------------------------------------------
             reg [NUM_BHT_ENTRIES_W-1:0] global_history_q;
-
             always @ (posedge clk_i or posedge rst_i)
                 if (rst_i)
                     global_history_q <= {NUM_BHT_ENTRIES_W{1'b0}};
@@ -186,6 +188,7 @@ module npc
             reg         btb_is_call_q[NUM_BTB_ENTRIES-1:0];
             reg         btb_is_ret_q[NUM_BTB_ENTRIES-1:0];
             reg         btb_is_jmp_q[NUM_BTB_ENTRIES-1:0];
+
             reg         btb_valid_r;
             reg [ 1:0]  btb_slot_r;
             reg         btb_is_call_r;
@@ -194,24 +197,28 @@ module npc
             reg         btb_is_jmp_r;
 
             reg [NUM_BTB_ENTRIES_W-1:0] btb_entry_r;
-            integer i0;
+            
+            // Mask para ignorar instruções anteriores ao PC atual
+            // Se PC termina em 0 (Slot 0) -> fetch_offset = 0
+            wire [1:0] fetch_offset = pc_f_i[3:2];
 
+            integer i0;
             always @ * begin
                 btb_valid_r     = 1'b0;
-                btb_slot_r      = 2'b00; // Default para slot 0
+                btb_slot_r      = 2'b00;
                 btb_is_call_r   = 1'b0;
                 btb_is_ret_r    = 1'b0;
                 btb_is_jmp_r    = 1'b0;
-                // Lógica de 4-issue (PC+16)
-                btb_next_pc_r   = {pc_f_i[31:4],4'b0} + 32'd16;
+                // Default: Avança 16 bytes (4 instruções)
+                btb_next_pc_r   = aligned_pc_w + 32'd16;
                 btb_entry_r     = {NUM_BTB_ENTRIES_W{1'b0}};
 
-                // Loop único para encontrar o *primeiro* desvio em qualquer um dos 4 slots.
+                // Loop revisado: Só considera branches em slots >= fetch_offset
                 for (i0 = 0; i0 < NUM_BTB_ENTRIES; i0 = i0 + 1) begin
-                    // Slot 0 (PC + 0)
-                    if (btb_pc_q[i0] == pc_f_i) begin
+                    // Slot 0
+                    if ((fetch_offset <= 2'd0) && (btb_pc_q[i0] == aligned_pc_w)) begin
                         btb_valid_r     = 1'b1;
-                        btb_slot_r      = 2'b00; // Slot 0
+                        btb_slot_r      = 2'b00;
                         btb_is_call_r   = btb_is_call_q[i0];
                         btb_is_ret_r    = btb_is_ret_q[i0];
                         btb_is_jmp_r    = btb_is_jmp_q[i0];
@@ -220,11 +227,10 @@ module npc
                         btb_entry_r     = i0;
                         /* verilator lint_on WIDTH */
                     end
-                    // Slot 1 (PC + 4)
-                    // (Só verifica se o slot 0 não foi encontrado)
-                    else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd4)) begin
+                    // Slot 1
+                    else if (~btb_valid_r && (fetch_offset <= 2'd1) && (btb_pc_q[i0] == (aligned_pc_w + 32'd4))) begin
                         btb_valid_r     = 1'b1;
-                        btb_slot_r      = 2'b01; // Slot 1
+                        btb_slot_r      = 2'b01;
                         btb_is_call_r   = btb_is_call_q[i0];
                         btb_is_ret_r    = btb_is_ret_q[i0];
                         btb_is_jmp_r    = btb_is_jmp_q[i0];
@@ -233,11 +239,10 @@ module npc
                         btb_entry_r     = i0;
                         /* verilator lint_on WIDTH */
                     end
-                    // Slot 2 (PC + 8)
-                    // (Só verifica se os slots 0 e 1 não foram encontrados)
-                    else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd8)) begin
+                    // Slot 2
+                    else if (~btb_valid_r && (fetch_offset <= 2'd2) && (btb_pc_q[i0] == (aligned_pc_w + 32'd8))) begin
                         btb_valid_r     = 1'b1;
-                        btb_slot_r      = 2'b10; // Slot 2
+                        btb_slot_r      = 2'b10;
                         btb_is_call_r   = btb_is_call_q[i0];
                         btb_is_ret_r    = btb_is_ret_q[i0];
                         btb_is_jmp_r    = btb_is_jmp_q[i0];
@@ -246,11 +251,10 @@ module npc
                         btb_entry_r     = i0;
                         /* verilator lint_on WIDTH */
                     end
-                    // Slot 3 (PC + 12)
-                    // (Só verifica se os slots 0, 1 e 2 não foram encontrados)
-                    else if (~btb_valid_r && btb_pc_q[i0] == (pc_f_i | 32'd12)) begin
+                    // Slot 3
+                    else if (~btb_valid_r && (fetch_offset <= 2'd3) && (btb_pc_q[i0] == (aligned_pc_w + 32'd12))) begin
                         btb_valid_r     = 1'b1;
-                        btb_slot_r      = 2'b11; // Slot 3
+                        btb_slot_r      = 2'b11;
                         btb_is_call_r   = btb_is_call_q[i0];
                         btb_is_ret_r    = btb_is_ret_q[i0];
                         btb_is_jmp_r    = btb_is_jmp_q[i0];
@@ -260,7 +264,6 @@ module npc
                         /* verilator lint_on WIDTH */
                     end
                 end
-                // A lógica de busca original de 2-issue (com ~pc_f_i[2]) foi removida.
             end
 
             reg [NUM_BTB_ENTRIES_W-1:0]  btb_wr_entry_r;
@@ -278,7 +281,7 @@ module npc
                 if (branch_request_i) begin
                     for (i1 = 0; i1 < NUM_BTB_ENTRIES; i1 = i1 + 1) begin
                         if (btb_pc_q[i1] == branch_source_i) begin
-                            btb_hit_r = 1'b1;
+                            btb_hit_r      = 1'b1;
                             /* verilator lint_off WIDTH */
                             btb_wr_entry_r = i1;
                             /* verilator lint_on WIDTH */
@@ -292,29 +295,29 @@ module npc
             always @ (posedge clk_i or posedge rst_i)
                 if (rst_i) begin
                     for (i2 = 0; i2 < NUM_BTB_ENTRIES; i2 = i2 + 1) begin
-                        btb_pc_q[i2]        <= 32'b0;
-                        btb_target_q[i2]    <= 32'b0;
-                        btb_is_call_q[i2]   <= 1'b0;
-                        btb_is_ret_q[i2]    <= 1'b0;
-                        btb_is_jmp_q[i2]    <= 1'b0;
+                        btb_pc_q[i2]     <= 32'b0;
+                        btb_target_q[i2] <= 32'b0;
+                        btb_is_call_q[i2]<= 1'b0;
+                        btb_is_ret_q[i2] <= 1'b0;
+                        btb_is_jmp_q[i2] <= 1'b0;
                     end
                 end
                 // Hit - update entry
                 else if (btb_hit_r) begin
-                    btb_pc_q[btb_wr_entry_r]            <= branch_source_i;
+                    btb_pc_q[btb_wr_entry_r]     <= branch_source_i;
                     if (branch_is_taken_i)
-                        btb_target_q[btb_wr_entry_r]    <= branch_pc_i;
-                    btb_is_call_q[btb_wr_entry_r]       <= branch_is_call_i;
-                    btb_is_ret_q[btb_wr_entry_r]        <= branch_is_ret_i;
-                    btb_is_jmp_q[btb_wr_entry_r]        <= branch_is_jmp_i;
+                        btb_target_q[btb_wr_entry_r] <= branch_pc_i;
+                    btb_is_call_q[btb_wr_entry_r]<= branch_is_call_i;
+                    btb_is_ret_q[btb_wr_entry_r] <= branch_is_ret_i;
+                    btb_is_jmp_q[btb_wr_entry_r] <= branch_is_jmp_i;
                 end
                 // Miss - allocate entry
                 else if (btb_miss_r) begin
-                    btb_pc_q[btb_wr_alloc_w]        <= branch_source_i;
-                    btb_target_q[btb_wr_alloc_w]    <= branch_pc_i;
-                    btb_is_call_q[btb_wr_alloc_w]   <= branch_is_call_i;
-                    btb_is_ret_q[btb_wr_alloc_w]    <= branch_is_ret_i;
-                    btb_is_jmp_q[btb_wr_alloc_w]    <= branch_is_jmp_i;
+                    btb_pc_q[btb_wr_alloc_w]     <= branch_source_i;
+                    btb_target_q[btb_wr_alloc_w] <= branch_pc_i;
+                    btb_is_call_q[btb_wr_alloc_w]<= branch_is_call_i;
+                    btb_is_ret_q[btb_wr_alloc_w] <= branch_is_ret_i;
+                    btb_is_jmp_q[btb_wr_alloc_w] <= branch_is_jmp_i;
                 end
 
             //-----------------------------------------------------------------
@@ -322,55 +325,59 @@ module npc
             //-----------------------------------------------------------------
             npc_lfsr
             #(
-                .DEPTH(NUM_BTB_ENTRIES),
-                .ADDR_W(NUM_BTB_ENTRIES_W)
+                .DEPTH(NUM_BTB_ENTRIES)
+               ,.ADDR_W(NUM_BTB_ENTRIES_W)
             )
             u_lru
             (
-                .clk_i(clk_i),
-                .rst_i(rst_i),
-                .hit_i(btb_valid_r),
-                .hit_entry_i(btb_entry_r),
-                .alloc_i(btb_miss_r),
-                .alloc_entry_o(btb_wr_alloc_w)
+                 .clk_i(clk_i)
+                ,.rst_i(rst_i)
+
+                ,.hit_i(btb_valid_r)
+                ,.hit_entry_i(btb_entry_r)
+
+                ,.alloc_i(btb_miss_r)
+                ,.alloc_entry_o(btb_wr_alloc_w)
             );
 
             //-----------------------------------------------------------------
             // Outputs
             //-----------------------------------------------------------------
-            assign btb_valid_w      = btb_valid_r;
-            assign btb_slot_w       = btb_slot_r;
-            assign btb_is_call_w    = btb_is_call_r;
-            assign bbbtb_is_ret_w     = btb_is_ret_r;
-            assign next_pc_f_o      =
-                ras_ret_pred_w ?
-                ras_pc_pred_w :
-                (bht_predict_taken_w | btb_is_jmp_r) ?
-                btb_next_pc_r :
-                // Lógica de 4-issue (PC+16)
-                {pc_f_i[31:4],4'b0} + 32'd16;
-            // Gera um mask de 4 bits indicando quais slots são válidos.
-            // Ex: Se o desvio está no slot 1 (01), o mask é 4'b0011 (slots 0 e 1 são válidos).
-            // Ex: Se o desvio está no slot 2 (10), o mask é 4'b0111 (slots 0, 1 e 2 são válidos).
-            assign next_taken_f_o =
-                (btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r)) ?
-                // '4'b0001 << btb_slot_w' seleciona o bit do slot (0001, 0010, 0100, 1000)
-                // '... - 1' transforma em um mask (0001, 0011, 0111, 1111)
-                ( (4'b0001 << (btb_slot_w + 1)) - 1 ) :
-                4'b1111;
+            // Mask para invalidar instruções anteriores ao PC atual
+            wire [3:0] start_mask_w = 4'b1111 << fetch_offset;
 
-            assign pred_taken_w     = btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r) & pc_accept_i;
-            assign pred_ntaken_w    = btb_valid_w & ~pred_taken_w & pc_accept_i;
+            assign btb_valid_w   = btb_valid_r;
+            assign btb_slot_w    = btb_slot_r;
+            assign btb_is_call_w = btb_is_call_r;
+            assign btb_is_ret_w  = btb_is_ret_r;
+            
+            assign next_pc_f_o   = ras_ret_pred_w      ? ras_pc_pred_w : 
+                                   (bht_predict_taken_w | btb_is_jmp_r) ? btb_next_pc_r :
+                                   aligned_pc_w + 32'd16;
+
+            // Mascara final de validade: 
+            // 1. start_mask_w: Garante que ignoramos instruções anteriores ao PC
+            // 2. Branch mask: Garante que, se um salto for tomado no slot S, instruções > S são inválidas.
+            assign next_taken_f_o = (btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r)) ? 
+                                    ( (4'b0001 << (btb_slot_w + 1)) - 1 ) & start_mask_w :
+                                    start_mask_w;
+                                    
+            assign pred_taken_w   = btb_valid_w & (ras_ret_pred_w | bht_predict_taken_w | btb_is_jmp_r) & pc_accept_i;
+            assign pred_ntaken_w  = btb_valid_w & ~pred_taken_w & pc_accept_i;
+
 
         end
         //-----------------------------------------------------------------
         // No branch prediction
         //-----------------------------------------------------------------
         else begin: NO_BRANCH_PREDICTION
+            // No prediction, always sequential (PC+16)
             assign next_pc_f_o    = {pc_f_i[31:4],4'b0} + 32'd16;
-            assign next_taken_f_o = 4'b1111;
+            // Apenas aplica a máscara inicial (slots antes do PC são inválidos)
+            assign next_taken_f_o = 4'b1111 << pc_f_i[3:2];
         end
     endgenerate
+
 endmodule
 
 
@@ -379,40 +386,41 @@ module npc_lfsr
 // Params
 //-----------------------------------------------------------------
 #(
-    parameter DEPTH            = 32,
-    parameter ADDR_W           = 5,
-    parameter INITIAL_VALUE    = 16'h0001,
-    parameter TAP_VALUE        = 16'hB400
+     parameter DEPTH            = 32
+    ,parameter ADDR_W           = 5
+    ,parameter INITIAL_VALUE    = 16'h0001
+    ,parameter TAP_VALUE        = 16'hB400
 )
 //-----------------------------------------------------------------
 // Ports
 //-----------------------------------------------------------------
 (
     // Inputs
-    input               clk_i,
-    input               rst_i,
-    input               hit_i,
-    input [ADDR_W-1:0]  hit_entry_i,
-    input               alloc_i,
+     input           clk_i
+    ,input           rst_i
+    ,input           hit_i
+    ,input  [ADDR_W-1:0]  hit_entry_i
+    ,input           alloc_i
 
     // Outputs
-    output [ADDR_W-1:0] alloc_entry_o
+    ,output [ADDR_W-1:0]  alloc_entry_o
 );
-    //-----------------------------------------------------------------
-    // Scheme: LFSR
-    //-----------------------------------------------------------------
-    reg [15:0] lfsr_q;
+//-----------------------------------------------------------------
+// Scheme: LFSR
+//-----------------------------------------------------------------
+reg [15:0] lfsr_q;
 
-    always @ (posedge clk_i or posedge rst_i)
-        if (rst_i)
-            lfsr_q <= INITIAL_VALUE;
-        else if (alloc_i) begin
-            if (lfsr_q[0])
-                lfsr_q <= {1'b0, lfsr_q[15:1]} ^ TAP_VALUE;
-            else
-                lfsr_q <= {1'b0, lfsr_q[15:1]};
-        end
+always @ (posedge clk_i or posedge rst_i)
+if (rst_i)
+    lfsr_q <= INITIAL_VALUE;
+else if (alloc_i)
+begin
+    if (lfsr_q[0])
+        lfsr_q <= {1'b0, lfsr_q[15:1]} ^ TAP_VALUE;
+    else
+        lfsr_q <= {1'b0, lfsr_q[15:1]};
+end
 
-    assign alloc_entry_o = lfsr_q[ADDR_W-1:0];
+assign alloc_entry_o = lfsr_q[ADDR_W-1:0];
 
 endmodule
